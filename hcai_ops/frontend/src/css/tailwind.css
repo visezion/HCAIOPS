@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-body bg-slate-950 text-slate-100;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-white/5 dark:bg-slate-900/60 backdrop-blur-md border border-white/10 shadow-soft rounded-2xl;
+  }
+
+  .ghost-button {
+    @apply inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-200 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all;
+  }
+
+  .metric-grid {
+    @apply grid gap-4 md:grid-cols-2 xl:grid-cols-4;
+  }
+
+  .section-title {
+    @apply text-sm uppercase tracking-wide text-slate-400 font-semibold;
+  }
+}

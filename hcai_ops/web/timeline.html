@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HCAI OPS | Event Timeline</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" />
+  <style>[x-cloak]{display:none !important;}</style>
+  <script>
+    function timelinePage() {
+        return {
+
+            events: [],
+            expanded: {},
+
+            filters: {
+                type: "",
+                search: ""
+            },
+
+            async fetchEvents() {
+                let res = await fetch("/events/recent");
+                this.events = await res.json();
+            },
+
+            get filteredEvents() {
+
+                return this.events.filter(ev => {
+
+                    let ok = true;
+
+                    if (this.filters.type) {
+                        if (ev.event_type !== this.filters.type)
+                            ok = false;
+                    }
+
+                    if (this.filters.search) {
+                        const s = this.filters.search.toLowerCase();
+
+                        const combined =
+                            JSON.stringify(ev).toLowerCase();
+
+                        if (!combined.includes(s))
+                            ok = false;
+                    }
+
+                    return ok;
+                });
+            },
+
+            summary(ev) {
+                if (ev.event_type === "metric") {
+                    return `${ev.metric_name}: ${ev.metric_value}`;
+                }
+                if (ev.event_type === "alert") {
+                    return `Alert severity ${ev.alert_severity}`;
+                }
+                if (ev.event_type === "log") {
+                    return ev.log_message || "Log entry";
+                }
+                if (ev.event_type === "heartbeat") {
+                    return "Heartbeat received";
+                }
+                if (ev.event_type === "automation") {
+                    return "Automation action executed";
+                }
+                return "Event";
+            },
+
+            iconClass(type) {
+                return {
+                    metric:    "bg-blue-500",
+                    alert:     "bg-red-600",
+                    log:       "bg-yellow-400",
+                    heartbeat: "bg-green-500",
+                    automation:"bg-purple-600"
+                }[type] || "bg-gray-400";
+            },
+
+            typeBadge(type) {
+                return {
+                    metric:    "bg-blue-100 text-blue-700",
+                    alert:     "bg-red-100 text-red-700",
+                    log:       "bg-yellow-100 text-yellow-700",
+                    heartbeat: "bg-green-100 text-green-700",
+                    automation:"bg-purple-100 text-purple-700"
+                }[type] || "bg-gray-100 text-gray-700";
+            },
+
+            toggleExpand(id) {
+                this.expanded[id] = !this.expanded[id];
+            },
+
+            formatJSON(obj) {
+                return JSON.stringify(obj, null, 2);
+            },
+
+            init() {
+                this.fetchEvents();
+                setInterval(() => this.fetchEvents(), 10000);
+            }
+        }
+    }
+  </script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+<div class="max-w-6xl mx-auto px-4 py-8">
+<div class="flex items-center justify-between mb-6">
+  <div class="flex items-center gap-3">
+    <div class="h-10 w-10 rounded-xl bg-sky-100 border border-sky-200 flex items-center justify-center text-sky-600 font-bold">H</div>
+    <div>
+      <p class="text-xs text-slate-500 tracking-wide">HCAI OPS</p>
+      <p class="text-lg font-semibold text-slate-900">Event Timeline</p>
+    </div>
+  </div>
+  <span class="inline-flex items-center px-3 py-1 rounded-full bg-white border border-slate-200 shadow-sm text-xs text-slate-600">Live refresh</span>
+</div>
+
+<div x-data="timelinePage()" class="space-y-6">
+
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold text-slate-900">Event Timeline</h2>
+
+        <button @click="fetchEvents"
+            class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg shadow-sm text-sm font-semibold transition">
+            Refresh
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap gap-4 shadow-sm">
+
+        <!-- Event Type Filter -->
+        <div class="flex flex-col">
+            <label class="text-sm text-slate-700">Event Type</label>
+            <select x-model="filters.type"
+                    class="border border-slate-300 bg-white rounded px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-sky-500">
+                <option value="">All</option>
+                <option value="metric">Metric</option>
+                <option value="alert">Alert</option>
+                <option value="log">Log</option>
+                <option value="heartbeat">Heartbeat</option>
+                <option value="automation">Automation</option>
+            </select>
+        </div>
+
+        <!-- Search -->
+        <div class="flex flex-col">
+            <label class="text-sm text-slate-700">Search</label>
+            <input type="text"
+                placeholder="Search events..."
+                x-model="filters.search"
+                class="border border-slate-300 bg-white rounded px-3 py-2 w-64 text-sm text-slate-900 focus:ring-2 focus:ring-sky-500 placeholder:text-slate-400">
+        </div>
+
+    </div>
+
+    <!-- Timeline Container -->
+    <div class="relative border-l-2 border-slate-200 ml-4">
+
+        <template x-for="event in filteredEvents" :key="event.timestamp + event.source_id">
+
+            <div class="mb-8 ml-4">
+
+                <!-- Icon -->
+                <span :class="iconClass(event.event_type)"
+                      class="absolute -left-4 flex items-center justify-center w-6 h-6 rounded-full border-2 border-white shadow shadow-black/5">
+                </span>
+
+                <!-- Main Card -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    
+                    <div class="flex justify-between">
+                        <div>
+                            <p class="font-semibold text-slate-900" x-text="event.source_id"></p>
+                            <p class="text-xs text-slate-500" x-text="event.timestamp"></p>
+                        </div>
+
+                        <span class="px-2 py-1 text-xs rounded font-bold"
+                              :class="typeBadge(event.event_type)"
+                              x-text="(event.event_type || '').toUpperCase()">
+                        </span>
+                    </div>
+
+                    <!-- Summary Line -->
+                    <p class="mt-2 text-sm text-slate-900" x-text="summary(event)"></p>
+
+                    <!-- Expand Button -->
+                    <button @click="toggleExpand(event.timestamp + event.source_id)"
+                        class="mt-2 text-sky-600 underline text-xs hover:text-sky-500">
+                        Details
+                    </button>
+
+                    <!-- Expanded Details -->
+                    <div x-show="expanded[event.timestamp + event.source_id]" class="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <pre class="text-xs whitespace-pre-wrap text-slate-800" x-text="formatJSON(event.extras)"></pre>
+                    </div>
+
+                </div>
+            </div>
+
+        </template>
+
+    </div>
+
+</div>
+
+</div>
+
+</body>
+</html>

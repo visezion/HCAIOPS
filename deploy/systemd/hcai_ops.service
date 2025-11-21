@@ -1,0 +1,16 @@
+[Unit]
+Description=HCAI OPS API Service
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/hcai_ops
+ExecStart=/opt/hcai_ops/venv/bin/uvicorn hcai_ops.api.server:app --host 0.0.0.0 --port 8000
+Environment="HCAI_ENV=production"
+Environment="HCAI_LOG_DIR=/opt/hcai_ops/data/logs"
+Environment="HCAI_STORAGE_DIR=/opt/hcai_ops/data/storage"
+Restart=on-failure
+User=hcai
+Group=hcai
+
+[Install]
+WantedBy=multi-user.target

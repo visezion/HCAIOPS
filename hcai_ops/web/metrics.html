@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HCAI OPS | Metrics</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" />
+  <style>[x-cloak]{display:none !important;}</style>
+  <script>
+    function metricsPage() {
+        return {
+
+            metrics: [],
+            sources: [],
+            expanded: {},
+
+            filters: {
+                source_id: "",
+                search: ""
+            },
+
+            get filteredMetrics() {
+                return this.metrics.filter(m => {
+                    let ok = true;
+
+                    if (this.filters.source_id) {
+                        if (m.source_id !== this.filters.source_id)
+                            ok = false;
+                    }
+
+                    if (this.filters.search) {
+                        let q = this.filters.search.toLowerCase();
+                        if (!m.metric_name.toLowerCase().includes(q))
+                            ok = false;
+                    }
+
+                    return ok;
+                });
+            },
+
+            toggleExpand(metric) {
+                let key = metric.metric_name + "_" + metric.source_id;
+                this.expanded[key] = !this.expanded[key];
+            },
+
+            async fetchMetrics() {
+                let res = await fetch("/metrics/summary");
+                let data = await res.json();
+
+                this.metrics = Array.isArray(data) ? data : [];
+
+                // Collect unique sources
+                this.sources = [...new Set(this.metrics.map(m => m.source_id))];
+
+                // Populate empty history arrays
+                this.metrics.forEach(m => {
+                    if (!m.history) m.history = [];
+                });
+            },
+
+            init() {
+                this.fetchMetrics();
+                setInterval(() => this.fetchMetrics(), 15000);
+            }
+        }
+    }
+  </script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+<div class="max-w-6xl mx-auto px-4 py-8">
+<div class="flex items-center justify-between mb-6">
+  <div class="flex items-center gap-3">
+    <div class="h-10 w-10 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-600 font-bold">H</div>
+    <div>
+      <p class="text-xs text-slate-500 tracking-wide">HCAI OPS</p>
+      <p class="text-lg font-semibold text-slate-900">Metrics Intelligence</p>
+    </div>
+  </div>
+  <span class="inline-flex items-center px-3 py-1 rounded-full bg-white border border-slate-200 shadow-sm text-xs text-slate-600">Live refresh</span>
+</div>
+
+<div x-data="metricsPage()" class="space-y-4">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold text-slate-900">Metrics Dashboard</h2>
+
+        <button @click="fetchMetrics"
+            class="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold shadow-sm transition">
+            Refresh
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4">
+
+        <!-- Source Filter -->
+        <div>
+            <label class="text-sm text-slate-700">Source</label>
+            <select x-model="filters.source_id"
+                class="border border-slate-300 bg-white rounded px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500">
+                <option value="">All</option>
+                <template x-for="s in sources">
+                    <option :value="s" x-text="s"></option>
+                </template>
+            </select>
+        </div>
+
+        <!-- Search Metric -->
+        <div>
+            <label class="text-sm text-slate-700">Search Metric</label>
+            <input x-model="filters.search"
+                type="text"
+                class="border border-slate-300 bg-white rounded px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-400"
+                placeholder="cpu, memory, disk">
+        </div>
+
+    </div>
+
+    <!-- Metric Cards -->
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+        <template x-for="metric in filteredMetrics" :key="metric.metric_name + metric.source_id">
+
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition">
+
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-semibold text-lg text-slate-900" x-text="metric.metric_name"></h3>
+
+                    <span class="text-sm text-slate-500"
+                          x-text="metric.source_id">
+                    </span>
+                </div>
+
+                <!-- Value Display -->
+                <div class="mb-3">
+                    <p class="text-sm font-medium text-slate-600">Value</p>
+                    <p class="text-3xl font-bold text-slate-900"
+                       x-text="metric.metric_value">
+                    </p>
+                </div>
+
+                <!-- Progress Bar (for 0-1 normalized metrics) -->
+                <template x-if="metric.metric_value <= 1">
+                    <div class="w-full bg-slate-100 rounded-full h-2">
+                        <div class="bg-emerald-500 text-xs h-2 rounded-full"
+                             :style="'width: ' + (metric.metric_value*100) + '%'">
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Expandable Section -->
+                <div class="mt-3">
+                    <button @click="toggleExpand(metric)"
+                        class="text-emerald-600 underline text-xs hover:text-emerald-500">
+                        View History
+                    </button>
+
+                    <div x-show="expanded[metric.metric_name+'_'+metric.source_id]"
+                         class="mt-2 bg-slate-50 p-3 rounded-lg max-h-40 overflow-auto text-xs border border-slate-200">
+
+                        <template x-for="item in metric.history">
+                            <div class="border-b border-slate-200 py-1 text-slate-800">
+                                <span x-text="item.timestamp"></span>
+                                <span class="ml-2 font-semibold text-emerald-700"
+                                      x-text="item.value"></span>
+                            </div>
+                        </template>
+
+                    </div>
+                </div>
+
+            </div>
+
+        </template>
+
+    </div>
+
+</div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HCAI OPS Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@alpinejs/persist@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
+  <script src="/web/dashboard.js" defer></script>
+</head>
+<body x-data="dashboard()" class="bg-slate-900 text-slate-100 min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <!-- Top nav -->
+    <header class="flex items-center justify-between bg-slate-800/70 border border-slate-700 rounded-xl px-4 py-3 shadow">
+      <div class="flex items-center space-x-3">
+        <div class="h-10 w-10 rounded-lg bg-slate-700 flex items-center justify-center text-lg font-bold">H</div>
+        <div>
+          <div class="text-xl font-semibold">HCAI OPS</div>
+          <div class="text-sm text-slate-400">Autonomous Data Center Control</div>
+        </div>
+      </div>
+      <div class="flex items-center space-x-4">
+        <a href="/ui/metrics" class="px-3 py-2 rounded-lg bg-sky-500 text-slate-900 text-sm font-semibold hover:bg-sky-400 transition">
+          Open UI Suite
+        </a>
+        <div class="flex items-center space-x-2">
+          <span :class="latencyClass()" class="w-2.5 h-2.5 rounded-full"></span>
+          <span class="text-sm text-slate-300" x-text="latencyLabel()"></span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="text-sm text-slate-300">Refresh</span>
+          <select class="bg-slate-700 border border-slate-600 text-sm rounded-lg px-2 py-1" x-model.number="refreshSeconds">
+            <option value="5">5s</option>
+            <option value="10">10s</option>
+            <option value="30">30s</option>
+            <option value="60">60s</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <!-- Metrics & Insights -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <template x-for="card in metricCards" :key="card.key">
+          <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 shadow">
+            <div class="flex items-center justify-between">
+              <div class="text-sm text-slate-400" x-text="card.label"></div>
+              <span class="text-xs px-2 py-1 rounded-full" :class="badgeClass(card.value)" x-text="severityLabel(card.value)"></span>
+            </div>
+            <div class="text-2xl font-semibold mt-2" x-text="formatPercent(card.value)"></div>
+            <div class="flex items-end space-x-1 mt-3 h-10">
+              <template x-for="h in card.history.slice(-12)" :key="h.id">
+                <div class="w-2 bg-indigo-400/60 rounded-sm" :style="`height:${Math.max(6, h.val * 40)}px`"></div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+      <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 shadow">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <div class="text-sm text-slate-400">AI Insights</div>
+            <div class="text-lg font-semibold">Anomalies & Signals</div>
+          </div>
+          <div class="text-xs text-slate-400">status: <span x-text="systemStatusLabel()"></span></div>
+        </div>
+        <div class="space-y-2 max-h-56 overflow-y-auto">
+          <template x-if="!insights.length">
+            <div class="text-sm text-slate-500">No insights yet.</div>
+          </template>
+          <template x-for="item in insights" :key="item.id || item.message">
+            <div class="p-3 bg-slate-900/60 rounded-lg border border-slate-700">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-medium" x-text="item.title || item.message || 'Insight'"></div>
+                <span class="text-xs px-2 py-1 rounded-full bg-amber-500/20 text-amber-200" x-text="item.severity || 'info'"></span>
+              </div>
+              <div class="text-xs text-slate-400 mt-1" x-text="item.detail || item.description || ''"></div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logs + Control -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 bg-slate-800/80 border border-slate-700 rounded-xl p-4 shadow">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-lg font-semibold">Live Logs</div>
+          <div class="flex space-x-2">
+            <select class="bg-slate-900 border border-slate-700 text-sm rounded-lg px-2 py-1" x-model="logFilter.level">
+              <option value="">All Levels</option>
+              <option value="ERROR">ERROR</option>
+              <option value="WARNING">WARNING</option>
+              <option value="INFO">INFO</option>
+              <option value="DEBUG">DEBUG</option>
+            </select>
+            <input class="bg-slate-900 border border-slate-700 text-sm rounded-lg px-2 py-1" x-model="logFilter.source" placeholder="Filter source" />
+          </div>
+        </div>
+        <div class="overflow-auto max-h-96">
+          <table class="w-full text-sm text-left text-slate-300">
+            <thead class="text-xs uppercase bg-slate-900/80 text-slate-400">
+              <tr>
+                <th class="px-3 py-2">Time</th>
+                <th class="px-3 py-2">Level</th>
+                <th class="px-3 py-2">Source</th>
+                <th class="px-3 py-2">Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="log in filteredLogs()" :key="log.timestamp + log.log_message">
+                <tr class="border-b border-slate-700/60 hover:bg-slate-900/40">
+                  <td class="px-3 py-2 whitespace-nowrap" x-text="formatTime(log.timestamp)"></td>
+                  <td class="px-3 py-2">
+                    <span class="px-2 py-1 rounded-full text-xs" :class="logLevelClass(log.log_level)" x-text="log.log_level || 'INFO'"></span>
+                  </td>
+                  <td class="px-3 py-2" x-text="log.source_id"></td>
+                  <td class="px-3 py-2 text-slate-200" x-text="log.log_message || log.message"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="space-y-4">
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 shadow">
+          <div class="text-lg font-semibold mb-3">Cooling Controls</div>
+          <div class="space-y-2">
+            <label class="text-sm text-slate-300">Mode</label>
+            <select class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2" x-model="cooling.mode">
+              <option value="auto">Auto</option>
+              <option value="eco">Eco</option>
+              <option value="boost">Boost</option>
+            </select>
+            <label class="text-sm text-slate-300">Fan Speed</label>
+            <input type="number" min="0" max="100" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2" x-model.number="cooling.fan_speed" />
+            <label class="text-sm text-slate-300">Target Temp (°C)</label>
+            <input type="number" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2" x-model.number="cooling.target_temp" />
+            <button @click="applyCooling" class="w-full mt-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium">
+              Apply
+            </button>
+            <div class="text-xs text-emerald-300" x-text="controlMessage"></div>
+          </div>
+        </div>
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 shadow">
+          <div class="text-lg font-semibold mb-3">Agent Command</div>
+          <textarea class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm" rows="3" placeholder="Ask the agent..." x-model="agentCommand"></textarea>
+          <button @click="runAgentCommand" :disabled="agentBusy" class="w-full mt-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+            <span x-show="!agentBusy">Send Command</span>
+            <span x-show="agentBusy">Working...</span>
+          </button>
+          <div class="text-xs text-slate-300 mt-2" x-text="agentResult"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

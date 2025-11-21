@@ -1,0 +1,9 @@
+body {
+  background: #0f172a;
+}
+.topbar {
+  background: linear-gradient(90deg, #4f46e5, #9333ea);
+}
+.topbar-wrapper .link span {
+  color: #fff !important;
+}

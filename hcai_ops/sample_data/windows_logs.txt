@@ -1,0 +1,2 @@
+Information 2025-01-04 10:14:05 Microsoft-Windows-Time-Service Time service started
+Error 2025-01-04 10:15:20 Microsoft-Windows-DistributedCOM DCOM failed to start

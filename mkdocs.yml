@@ -1,0 +1,29 @@
+site_name: HCAI OPS
+site_url: https://docs.hcaiops.ai
+theme:
+  name: material
+  logo: images/logo.png
+  favicon: images/logo.png
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: deep purple
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+nav:
+  - Home: index.md
+  - Installation: install.md
+  - Quickstart: quickstart.md
+  - Agents: agents.md
+  - Pipelines: pipelines.md
+  - Automations: automations.md
+  - API: api.md
+  - Deployment: deployment.md
+  - Troubleshooting: troubleshooting.md
+  - Tutorials:
+      - Tutorial 01: tutorials/tutorial01_install.md
+      - Tutorial 02: tutorials/tutorial02_agent_setup.md
+      - Tutorial 03: tutorials/tutorial03_dashboards.md

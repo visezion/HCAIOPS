@@ -1,0 +1,1 @@
+HCAI OPS is a reusable Python framework for human-centered operational intelligence that predicts system risk, detects incidents, prioritizes alerts, and recommends actions by combining metrics, logs, and synthetic operator behavior.

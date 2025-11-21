@@ -1,0 +1,36 @@
+<div class="glass-panel p-4 flex flex-col gap-3 hover:border-sky-500/30 transition-all">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="relative">
+        <div class="h-11 w-11 rounded-xl bg-sky-500/15 border border-sky-500/20 flex items-center justify-center">
+          <svg class="w-6 h-6 text-sky-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2" />
+            <circle cx="12" cy="12" r="9" />
+          </svg>
+        </div>
+        <span class="absolute -bottom-1 -right-1 inline-flex h-3 w-3 rounded-full ring-2 ring-slate-900/80"
+          :class="agent.status === 'healthy' ? 'bg-emerald-400' : agent.status === 'degraded' ? 'bg-amber-300' : 'bg-rose-400'"></span>
+      </div>
+      <div>
+        <p class="text-sm font-semibold text-white" x-text="agent.name"></p>
+        <p class="text-xs text-slate-400" x-text="agent.role || ('Source ' + agent.id)"></p>
+      </div>
+    </div>
+    <div class="text-right">
+      <p class="text-xs text-slate-400">Latency</p>
+      <p class="text-sm text-slate-200" x-text="(agent.latency || 0) + ' ms'"></p>
+    </div>
+  </div>
+  <div class="flex items-center justify-between text-xs text-slate-400">
+    <div class="flex items-center gap-2">
+      <span class="relative flex h-3 w-3">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
+          :class="agent.status === 'healthy' ? 'bg-emerald-400' : agent.status === 'degraded' ? 'bg-amber-300' : 'bg-rose-400'"></span>
+        <span class="relative inline-flex rounded-full h-3 w-3"
+          :class="agent.status === 'healthy' ? 'bg-emerald-400' : agent.status === 'degraded' ? 'bg-amber-300' : 'bg-rose-400'"></span>
+      </span>
+      <span x-text="agent.status === 'healthy' ? 'Heartbeat OK' : agent.status === 'degraded' ? 'Slow heartbeat' : 'Unreachable'"></span>
+    </div>
+    <span x-text="agent.heartbeat ? new Date(agent.heartbeat).toLocaleTimeString() : 'live'"></span>
+  </div>
+</div>
