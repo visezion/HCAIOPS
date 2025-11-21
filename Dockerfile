@@ -21,12 +21,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
 WORKDIR /app
 RUN useradd -m hcai
 COPY --from=builder /install /usr/local
-COPY ${BACKEND_DIR}/hcai_ops ./hcai_ops
-COPY ${BACKEND_DIR}/web ./web
-COPY ${BACKEND_DIR}/models_store ./models_store
-COPY ${BACKEND_DIR}/storage ./storage
-COPY ${BACKEND_DIR}/sample_data ./sample_data
-COPY ${BACKEND_DIR}/data ./data
+COPY ${BACKEND_DIR}/ ./ 
 RUN mkdir -p /app/data/logs /app/data/storage && chown -R hcai:hcai /app
 USER hcai
 EXPOSE 8000

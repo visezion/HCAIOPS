@@ -33,12 +33,7 @@ RUN groupadd -r hcai && useradd -r -g hcai hcai
 COPY --from=builder /install /usr/local
 
 # Application source and assets
-COPY hcai_ops ./hcai_ops
-COPY web ./web
-COPY models_store ./models_store
-COPY storage ./storage
-COPY sample_data ./sample_data
-COPY data ./data
+COPY . .
 
 RUN mkdir -p /app/data/logs /app/data/storage \
     && chown -R hcai:hcai /app
