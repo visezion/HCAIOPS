@@ -8,8 +8,8 @@
 
 ## Backend (FastAPI) setup
 ```bash
-git clone https://github.com/your-org/hcai_ops.git
-cd hcai_ops
+git clone https://github.com/visezion/HCAIOPS.git
+cd HCAIOPS
 python -m venv venv
 source venv/bin/activate  # Windows: .\venv\Scripts\Activate.ps1
 pip install --upgrade pip
