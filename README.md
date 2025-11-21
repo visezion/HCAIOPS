@@ -58,6 +58,11 @@ mkdocs serve
 ## Agent install on another server/PC (Windows, macOS, Linux)
 Prereqs: Python 3.11+, outbound HTTPS to your API host (e.g., `https://hcaiops.vicezion.com`), and a valid API token.
 
+### 0) Quick auto-install (no Python preinstalled)
+- Windows (PowerShell, run as admin if winget/choco prompt): `scripts\install_agent.ps1`
+- macOS/Linux: `bash scripts/install_agent.sh`
+These scripts attempt to install Python 3.11+ (winget/choco/apt/dnf/yum/brew), create a venv, and install the agent. Then jump to step 3 to configure.
+
 ### 1) Get the code
 ```bash
 git clone https://github.com/visezion/HCAIOPS.git
