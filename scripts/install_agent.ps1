@@ -30,6 +30,16 @@ if (-not $py) {
     if (-not $py) { throw "Python installation failed. Install manually and rerun." }
 }
 
+& $py - <<'PY'  # version check
+import sys,sysconfig
+v=sys.version_info
+assert v >= (3,11), f"Python {sys.version.split()[0]} is too old; need 3.11+."
+PY
+
+if (Test-Path $venvPath) {
+    Remove-Item -Recurse -Force $venvPath
+}
+
 & $py -m ensurepip --default-pip *> $null
 & $py -m pip install --upgrade pip
 & $py -m venv $venvPath

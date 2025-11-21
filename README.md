@@ -61,7 +61,7 @@ Prereqs: Python 3.11+, outbound HTTPS to your API host (e.g., `https://hcaiops.v
 ### 0) Quick auto-install (no Python preinstalled)
 - Windows (PowerShell, run as admin if winget/choco prompt): `scripts\install_agent.ps1`
 - macOS/Linux: `bash scripts/install_agent.sh`
-These scripts attempt to install Python 3.11+ (winget/choco/apt/dnf/yum/brew), create a venv, and install the agent. Then jump to step 3 to configure.
+These scripts attempt to install Python 3.11+ (winget/choco/apt/dnf/yum/brew), recreate a fresh venv if needed, and install the agent. Then jump to step 3 to configure.
 
 ### 1) Get the code
 ```bash

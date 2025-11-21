@@ -42,6 +42,18 @@ ensure_python() {
 }
 
 ensure_python
+"$PYTHON" - <<'PY'
+import sys
+import os
+if sys.version_info < (3, 11):
+    print(f"Python {sys.version.split()[0]} is too old; need 3.11+.", file=sys.stderr)
+    sys.exit(1)
+PY
+
+# Recreate venv if it exists (handles corrupted envs)
+if [ -d "$VENV_DIR" ]; then
+  rm -rf "$VENV_DIR"
+fi
 "$PYTHON" -m ensurepip --default-pip >/dev/null 2>&1 || true
 "$PYTHON" -m pip install --upgrade pip
 "$PYTHON" -m venv "$VENV_DIR"
