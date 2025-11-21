@@ -23,3 +23,4 @@ Open the URL printed by Vite (defaults to `http://localhost:5173`).
 docker compose -f docker-compose.prod.yml up --build -d
 ```
 Then browse to `http://localhost` (UI) or `http://localhost:8000/health` (API).
+- If port 80 is taken on your host, change the frontend `ports` entry in `docker-compose.prod.yml` (e.g., `8080:80`) and rerun `docker compose up -d`.

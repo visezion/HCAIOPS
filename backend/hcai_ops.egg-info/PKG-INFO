@@ -10,3 +10,5 @@ Requires-Dist: fastapi
 Requires-Dist: uvicorn
 Requires-Dist: pydantic
 Requires-Dist: joblib
+Requires-Dist: jinja2
+Requires-Dist: httpx

@@ -29,3 +29,4 @@ npm run dev  # set VITE_API_BASE to your backend URL if needed
 ```bash
 docker compose -f docker-compose.prod.yml up --build -d
 ```
+If host port 80 is already in use, edit the frontend `ports` mapping in `docker-compose.prod.yml` (e.g., `8080:80`) and rerun `docker compose up -d`.

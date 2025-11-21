@@ -4,7 +4,7 @@
 - Development (hot reload backend): `docker compose -f docker-compose.dev.yml up --build`
 - Production (API + UI + nginx proxy): `docker compose -f docker-compose.prod.yml up --build -d`
 
-The production stack builds from `backend/` and `frontend/`, exposes API on `8000`, UI on `80/443`, and persists logs/storage via named volumes.
+The production stack builds from `backend/` and `frontend/`, exposes API on `8000`, UI on `80/443`, and persists logs/storage via named volumes. If port 80 is in use, change the frontend mapping (e.g., `8080:80`) in `docker-compose.prod.yml`.
 
 ## Systemd (non-docker)
 - Place project at `/opt/hcai_ops`
@@ -25,6 +25,7 @@ See `deploy/nginx/hcai_ops.conf` for reverse proxying and certbot webroot settin
    - API: `curl http://localhost:8000/health`  
    - UI: `http://<server-domain-or-ip>/`
 6) Logs and data persist automatically via the `backend_logs` and `backend_storage` volumes.
+7) Port conflicts: if host port 80 is already bound, change the frontend `ports` mapping to another host port and rerun `docker compose up -d`.
 
 ## Step-by-step (systemd, no Docker)
 1) Install Python 3.11+ (and Node 20+ if building the UI locally).

@@ -11,7 +11,9 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "pydantic",
-    "joblib"
+    "joblib",
+    "jinja2",
+    "httpx"
 ]
 
 [build-system]
