@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: hcai_ops_backend
+    environment:
+      HCAI_ENV: production
+      HCAI_LOG_DIR: /app/data/logs
+      HCAI_STORAGE_DIR: /app/data/storage
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_logs:/app/data/logs
+      - backend_storage:/app/data/storage
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: hcai_ops_frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+
+volumes:
+  backend_logs:
+  backend_storage:
