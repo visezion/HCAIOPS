@@ -1,13 +1,25 @@
 # Quickstart
 
-1) Install dependencies (see Installation).
-2) Start the API:
+## Python backend (dev loop)
 ```bash
-uvicorn hcai_ops.api.server:app --reload
+python -m venv venv
+source venv/bin/activate  # or .\venv\Scripts\Activate.ps1
+pip install -e backend
+cd backend
+uvicorn hcai_ops.api.server:app --host 0.0.0.0 --port 8000 --reload
 ```
-3) Browse to `http://localhost:8000/ui/dashboard`.
-4) Hit the health endpoint:
+Open `http://localhost:8000/health` to verify, and `http://localhost:8000/docs` for API docs.
+
+## Frontend (optional, live dev)
 ```bash
-curl http://localhost:8000/health
+cd frontend
+npm install
+VITE_API_BASE=http://localhost:8000 npm run dev
 ```
-5) Explore the API docs at `/docs`.
+Open the URL printed by Vite (defaults to `http://localhost:5173`).
+
+## Docker (API + UI together)
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+```
+Then browse to `http://localhost` (UI) or `http://localhost:8000/health` (API).

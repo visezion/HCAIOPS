@@ -6,4 +6,4 @@ Welcome to the Human-Centric AI Operations Platform.
 - Closed-loop automation
 - Safe agents
 
-Use the navigation to explore installation, quickstart, API, and tutorials.
+Start with **Installation** and **Quickstart** to run locally, or **Deployment** for Docker/systemd. Use the navigation for API details and tutorials.
