@@ -10,14 +10,22 @@ Human-Centric AI Operations: risk prediction, incident detection, alert prioriti
 - `hcai_ops_agent/` - Lightweight agent package and tests.
 - `docs/` - MkDocs content for the project documentation site.
 
-## Run locally (Python backend)
-```bash
-python -m venv venv
-source venv/bin/activate  # Windows: .\venv\Scripts\Activate.ps1
-pip install --upgrade pip
-pip install -e backend
-cd backend && uvicorn hcai_ops.api.server:app --host 0.0.0.0 --port 8000 --reload
-```
+## Quick start (backend + frontend, local dev)
+- Prereqs: Python 3.11+, Node 18+, git.
+- Backend:
+  ```bash
+  python -m venv venv
+  source venv/bin/activate  # Windows: .\venv\Scripts\Activate.ps1
+  pip install --upgrade pip
+  pip install -e backend
+  cd backend && uvicorn hcai_ops.api.server:app --host 0.0.0.0 --port 8000 --reload
+  ```
+- Frontend (separate terminal):
+  ```bash
+  cd frontend
+  npm install
+  npm run dev
+  ```
 - Convenience scripts: `scripts/run_dev.sh` or `scripts/run_prod.sh`.
 
 ## Run UI locally
@@ -44,10 +52,13 @@ npm run dev   # serves the UI; set VITE_API_BASE to point at your backend if nee
 python -m pytest
 ```
 
-## Documentation
+## Documentation (local preview)
 ```bash
+python -m venv venv-docs
+source venv-docs/bin/activate  # Windows: .\venv-docs\Scripts\Activate.ps1
+pip install --upgrade pip
 pip install mkdocs mkdocs-material
-mkdocs serve
+mkdocs serve  # serves docs at http://127.0.0.1:8000 by default
 ```
 
 ## Deployment pointers
