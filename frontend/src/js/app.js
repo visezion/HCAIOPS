@@ -62,17 +62,14 @@ const rehydrateLater = () => setTimeout(() => hydrateComponents(document), 0);
 
 document.addEventListener('alpine:init', () => {
   Alpine.store('theme', {
-    mode: (typeof localStorage !== 'undefined' && localStorage.getItem('hcai-ops-theme')) || 'dark',
+    mode: 'light',
     get isDark() {
-      return this.mode === 'dark';
+      return false;
     },
     apply() {
-      document.documentElement.classList.toggle('dark', this.isDark);
-      document.documentElement.style.backgroundColor = this.isDark ? '#0b1224' : '#f8fafc';
+      document.documentElement.classList.remove('dark');
     },
     toggle() {
-      this.mode = this.isDark ? 'light' : 'dark';
-      localStorage.setItem('hcai-ops-theme', this.mode);
       this.apply();
     },
   });

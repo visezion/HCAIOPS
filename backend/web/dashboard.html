@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,31 +8,36 @@
   <script src="https://unpkg.com/@alpinejs/persist@3.x.x/dist/cdn.min.js" defer></script>
   <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" />
+  <link rel="stylesheet" href="/web/style.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
+  <script src="/web/nav.js"></script>
   <script src="/web/dashboard.js" defer></script>
 </head>
-<body x-data="dashboard()" class="bg-slate-900 text-slate-100 min-h-screen">
+<body x-data="dashboard()" class="page-bg text-slate-900 min-h-screen">
   <div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <div id="global-nav" class="mb-4"></div>
+    <script>injectNav('global-nav', 'dashboard');</script>
+
     <!-- Top nav -->
-    <header class="flex items-center justify-between bg-slate-800/70 border border-slate-700 rounded-xl px-4 py-3 shadow">
+    <header class="panel flex items-center justify-between px-4 py-3">
       <div class="flex items-center space-x-3">
-        <div class="h-10 w-10 rounded-lg bg-slate-700 flex items-center justify-center text-lg font-bold">H</div>
+        <div class="h-10 w-10 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center text-lg font-bold border border-sky-200">H</div>
         <div>
-          <div class="text-xl font-semibold">HCAI OPS</div>
-          <div class="text-sm text-slate-400">Autonomous Data Center Control</div>
+          <div class="text-xl font-semibold text-slate-900">HCAI OPS</div>
+          <div class="text-sm text-slate-500">Autonomous Data Center Control</div>
         </div>
       </div>
       <div class="flex items-center space-x-4">
-        <a href="/ui/metrics" class="px-3 py-2 rounded-lg bg-sky-500 text-slate-900 text-sm font-semibold hover:bg-sky-400 transition">
+        <a href="/ui/metrics" class="px-3 py-2 rounded-lg bg-sky-100 text-sky-800 text-sm font-semibold hover:bg-sky-200 transition border border-sky-200">
           Open UI Suite
         </a>
         <div class="flex items-center space-x-2">
           <span :class="latencyClass()" class="w-2.5 h-2.5 rounded-full"></span>
-          <span class="text-sm text-slate-300" x-text="latencyLabel()"></span>
+          <span class="text-sm text-slate-600" x-text="latencyLabel()"></span>
         </div>
         <div class="flex items-center space-x-2">
-          <span class="text-sm text-slate-300">Refresh</span>
-          <select class="bg-slate-700 border border-slate-600 text-sm rounded-lg px-2 py-1" x-model.number="refreshSeconds">
+          <span class="text-sm text-slate-600">Refresh</span>
+          <select class="bg-white border border-slate-200 text-sm rounded-lg px-2 py-1" x-model.number="refreshSeconds">
             <option value="5">5s</option>
             <option value="10">10s</option>
             <option value="30">30s</option>

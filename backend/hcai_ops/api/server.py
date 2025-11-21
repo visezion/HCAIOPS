@@ -87,6 +87,9 @@ app.include_router(download_router)
 STATIC_DIR = BASE_DIR / "ui" / "static"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+# Serve web assets (HTML/JS/CSS) for legacy UI pages
+if WEB_DIR.exists():
+    app.mount("/web", StaticFiles(directory=str(WEB_DIR)), name="web")
 agent_router = APIRouter(prefix="/agent", tags=["agent"])
 
 

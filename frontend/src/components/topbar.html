@@ -1,41 +1,63 @@
 <div class="w-full px-4 lg:px-6 py-4 flex items-center justify-between glass-panel rounded-2xl" x-data="{}">
   <div class="flex items-center gap-3">
-    <div class="hidden md:flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2">
-      <button class="text-xs px-2 py-1 rounded-lg border border-white/10 hover:bg-white/10"
-        :class="$store.hcai.activeTab === 'overview' ? 'bg-white/10 text-white' : 'text-slate-300'"
+    <div class="hidden md:flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2">
+      <button class="text-xs px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100"
+        :class="$store.hcai.activeTab === 'overview' ? 'bg-sky-50 text-slate-900 border-sky-200' : 'text-slate-600'"
         @click="$store.hcai.setTab('overview')">
         Overview
       </button>
-      <button class="text-xs px-2 py-1 rounded-lg border border-white/10 hover:bg-white/10"
-        :class="$store.hcai.activeTab === 'logs' ? 'bg-white/10 text-white' : 'text-slate-300'"
+      <button class="text-xs px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100"
+        :class="$store.hcai.activeTab === 'logs' ? 'bg-sky-50 text-slate-900 border-sky-200' : 'text-slate-600'"
         @click="$store.hcai.setTab('logs')">
         Logs
       </button>
-      <button class="text-xs px-2 py-1 rounded-lg border border-white/10 hover:bg-white/10"
-        :class="$store.hcai.activeTab === 'automation' ? 'bg-white/10 text-white' : 'text-slate-300'"
+      <button class="text-xs px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100"
+        :class="$store.hcai.activeTab === 'automation' ? 'bg-sky-50 text-slate-900 border-sky-200' : 'text-slate-600'"
         @click="$store.hcai.setTab('automation')">
         Automation
       </button>
-      <button class="text-xs px-2 py-1 rounded-lg border border-white/10 hover:bg-white/10"
-        :class="$store.hcai.activeTab === 'agents' ? 'bg-white/10 text-white' : 'text-slate-300'"
+      <button class="text-xs px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100"
+        :class="$store.hcai.activeTab === 'agents' ? 'bg-sky-50 text-slate-900 border-sky-200' : 'text-slate-600'"
         @click="$store.hcai.setTab('agents')">
         Agents
       </button>
-      <button class="text-xs px-2 py-1 rounded-lg border border-white/10 hover:bg-white/10"
-        :class="$store.hcai.activeTab === 'intelligence' ? 'bg-white/10 text-white' : 'text-slate-300'"
+      <button class="text-xs px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100"
+        :class="$store.hcai.activeTab === 'intelligence' ? 'bg-sky-50 text-slate-900 border-sky-200' : 'text-slate-600'"
         @click="$store.hcai.setTab('intelligence')">
         Intelligence
       </button>
-      <button class="text-xs px-2 py-1 rounded-lg border border-white/10 hover:bg-white/10"
-        :class="$store.hcai.activeTab === 'control' ? 'bg-white/10 text-white' : 'text-slate-300'"
+      <button class="text-xs px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100"
+        :class="$store.hcai.activeTab === 'control' ? 'bg-sky-50 text-slate-900 border-sky-200' : 'text-slate-600'"
         @click="$store.hcai.setTab('control')">
         Control
       </button>
     </div>
-    <div class="hidden sm:flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+    <div class="hidden sm:flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2">
       <span class="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-      <p class="text-xs text-slate-300">Agents synchronized</p>
+      <p class="text-xs text-slate-600">Agents synchronized</p>
     </div>
+    <nav class="hidden lg:flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-xs text-slate-600">
+      <a class="hover:text-slate-900 transition" href="/" aria-label="Dashboard">Dashboard</a>
+      <span class="text-slate-400">•</span>
+      <a class="hover:text-slate-900 transition" href="/console" aria-label="Console">Console</a>
+      <span class="text-slate-400">•</span>
+      <a class="hover:text-slate-900 transition" href="/intelligence" aria-label="Intelligence">Intelligence</a>
+      <span class="text-slate-400">•</span>
+      <a class="hover:text-slate-900 transition" href="/agent" aria-label="Agents">Agents</a>
+      <span class="text-slate-400">•</span>
+      <a class="hover:text-slate-900 transition" href="/docs" aria-label="API Docs" target="_blank" rel="noreferrer">API Docs</a>
+    </nav>
+    <nav class="flex lg:hidden items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-[11px] text-slate-600 overflow-x-auto no-scrollbar">
+      <a class="hover:text-slate-900 transition whitespace-nowrap" href="/" aria-label="Dashboard">Dashboard</a>
+      <span class="text-slate-400">•</span>
+      <a class="hover:text-slate-900 transition whitespace-nowrap" href="/console" aria-label="Console">Console</a>
+      <span class="text-slate-400">•</span>
+      <a class="hover:text-slate-900 transition whitespace-nowrap" href="/intelligence" aria-label="Intelligence">Intelligence</a>
+      <span class="text-slate-400">•</span>
+      <a class="hover:text-slate-900 transition whitespace-nowrap" href="/agent" aria-label="Agents">Agents</a>
+      <span class="text-slate-400">•</span>
+      <a class="hover:text-slate-900 transition whitespace-nowrap" href="/docs" aria-label="API Docs" target="_blank" rel="noreferrer">API Docs</a>
+    </nav>
     <div class="relative">
       <input type="text" placeholder="Search intents, signals, playbooks..." class="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm w-72 focus:ring-2 focus:ring-sky-400 focus:outline-none placeholder:text-slate-500">
       <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6">
@@ -61,15 +83,6 @@
         </div>
       </template>
     </div>
-    <button class="ghost-button" @click="$store.theme.toggle()">
-      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" x-show="$store.theme.isDark">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m3.93-6.07L6.5 6.5m10.6 10.6l1.43 1.43m0-12.02L17.1 6.5M6.5 17.1L5.07 18.5" />
-      </svg>
-      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" x-cloak x-show="!$store.theme.isDark">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" />
-      </svg>
-      <span class="text-sm">Toggle</span>
-    </button>
     <button class="inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10">
       <svg class="w-5 h-5 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l3 3" />
