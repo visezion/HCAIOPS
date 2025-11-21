@@ -1,16 +1,18 @@
 version: "3.9"
 services:
   hcai_api:
-    build: .
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: hcai_ops_api_dev
     environment:
       - HCAI_ENV=development
       - HCAI_LOG_DIR=/app/data/logs
       - HCAI_STORAGE_DIR=/app/data/storage
     volumes:
-      - .:/app
-      - ./data/logs:/app/data/logs
-      - ./data/storage:/app/data/storage
+      - ./backend:/app
+      - ./backend/data/logs:/app/data/logs
+      - ./backend/data/storage:/app/data/storage
     ports:
       - "8000:8000"
     command: uvicorn hcai_ops.api.server:app --host 0.0.0.0 --port 8000 --reload

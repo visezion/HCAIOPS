@@ -4,10 +4,10 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-COPY hcai_ops/frontend/package.json ./
+COPY package.json ./
 RUN npm install --no-fund --no-audit
 
-COPY hcai_ops/frontend/ ./
+COPY . .
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime

@@ -12,8 +12,8 @@ RUN apt-get update \
 WORKDIR /app
 
 # Install dependencies into a staging prefix to keep the runtime image slim
-COPY hcai_ops/pyproject.toml .
-COPY hcai_ops/hcai_ops ./hcai_ops
+COPY pyproject.toml .
+COPY hcai_ops ./hcai_ops
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir --prefix=/install .
 
@@ -33,12 +33,12 @@ RUN groupadd -r hcai && useradd -r -g hcai hcai
 COPY --from=builder /install /usr/local
 
 # Application source and assets
-COPY hcai_ops/hcai_ops ./hcai_ops
-COPY hcai_ops/web ./web
-COPY hcai_ops/models_store ./models_store
-COPY hcai_ops/storage ./storage
-COPY hcai_ops/sample_data ./sample_data
-COPY hcai_ops/data ./data
+COPY hcai_ops ./hcai_ops
+COPY web ./web
+COPY models_store ./models_store
+COPY storage ./storage
+COPY sample_data ./sample_data
+COPY data ./data
 
 RUN mkdir -p /app/data/logs /app/data/storage \
     && chown -R hcai:hcai /app

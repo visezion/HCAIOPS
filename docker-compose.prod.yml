@@ -3,8 +3,8 @@ version: "3.9"
 services:
   backend:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: hcai_ops_backend
     environment:
       HCAI_ENV: production
@@ -19,8 +19,8 @@ services:
 
   frontend:
     build:
-      context: .
-      dockerfile: frontend/Dockerfile
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: hcai_ops_frontend
     depends_on:
       - backend

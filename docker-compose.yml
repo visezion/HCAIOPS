@@ -1,15 +1,17 @@
 version: "3.9"
 services:
   hcai_api:
-    build: .
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: hcai_ops_api
     environment:
       - HCAI_ENV=production
       - HCAI_LOG_DIR=/app/data/logs
       - HCAI_STORAGE_DIR=/app/data/storage
     volumes:
-      - ./data/logs:/app/data/logs
-      - ./data/storage:/app/data/storage
+      - ./backend/data/logs:/app/data/logs
+      - ./backend/data/storage:/app/data/storage
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -25,5 +27,5 @@ services:
       - ./deploy/nginx/hcai_ops.conf:/etc/nginx/conf.d/hcai_ops.conf:ro
       - ./data/letsencrypt:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
-      - ./web:/usr/share/nginx/html/web
+      - ./backend/web:/usr/share/nginx/html/web
     restart: unless-stopped
