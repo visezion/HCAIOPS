@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HCAI OPS | Autonomous Operations Dashboard</title>
+  <meta name="description" content="HCAI OPS frontend scaffold with TailwindCSS, AlpineJS, and Flowbite">
+  <style>[x-cloak]{display:none !important;}</style>
+  <script type="module" crossorigin src="/assets/index-99LU2LH8.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-D7Ci9sHF.css">
+</head>
+<body x-data="$store.hcai" x-init="$store.hcai.init()" :class="{'dark': $store.theme.isDark}" class="bg-slate-950 text-slate-100">
+  <div class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div class="max-w-7xl mx-auto flex min-h-screen gap-4">
+      <aside class="hidden lg:block w-72 shrink-0" data-include="/src/components/sidebar.html"></aside>
+
+      <div class="flex-1 flex flex-col gap-4 p-4 lg:p-6">
+        <header class="sticky top-4 z-30" data-include="/src/components/topbar.html"></header>
+
+        <main class="space-y-6" id="dashboard">
+          <section x-show="$store.hcai.activeTab === 'overview'" x-cloak class="space-y-6">
+            <div class="glass-panel p-4 lg:p-6 space-y-4">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="section-title">Overview</p>
+                  <h2 class="text-xl font-semibold text-white">Autonomous Health Board</h2>
+                  <p class="text-sm text-slate-400 mt-1">Live view of cluster health, risk, and utilization</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button class="ghost-button" @click="$store.hcai.loadMetrics()">Refresh</button>
+                  <button class="ghost-button" data-modal-target="control-modal" data-modal-toggle="control-modal">Command</button>
+                </div>
+              </div>
+              <div x-show="$store.hcai.loadingMetrics" class="text-sm text-slate-400">Loading metrics...</div>
+              <div class="metric-grid">
+                <template x-for="metric in $store.hcai.metricsList()" :key="metric.name + metric.source">
+                  <div data-component="metric_card" x-data="{ metric }"></div>
+                </template>
+              </div>
+            </div>
+
+            <div class="grid lg:grid-cols-3 gap-4">
+              <div class="lg:col-span-2 glass-panel p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="section-title">Latest anomalies</p>
+                    <h3 class="text-lg font-semibold text-white">Risk radar</h3>
+                  </div>
+                  <button class="ghost-button text-xs" @click="$store.hcai.loadIntelligence()">Sync</button>
+                </div>
+                <div class="space-y-2">
+                  <template x-for="alert in $store.hcai.anomalies.slice(0, 4)" :key="alert.id">
+                    <div class="flex items-start gap-3 rounded-xl bg-white/5 border border-white/10 p-3">
+                      <div class="h-8 w-8 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 flex items-center justify-center">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10 6l2-3 2 3m7 6a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div class="flex-1 space-y-1">
+                        <div data-component="alert_badge" x-data="{ alert }"></div>
+                        <p class="text-sm text-white" x-text="alert.summary || 'Anomaly detected'"></p>
+                        <p class="text-xs text-slate-400" x-text="'Risk ' + (alert.score || alert.risk || 'n/a')"></p>
+                      </div>
+                      <span class="text-xs text-slate-400" x-text="alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString() : 'live'"></span>
+                    </div>
+                  </template>
+                  <div x-show="!$store.hcai.anomalies.length" class="text-xs text-slate-500">No anomalies detected.</div>
+                </div>
+              </div>
+
+              <div class="glass-panel p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="section-title">Log pulse</p>
+                    <h3 class="text-lg font-semibold text-white">Recent telemetry</h3>
+                  </div>
+                  <button class="ghost-button text-xs" @click="$store.hcai.loadLogs()">Refresh</button>
+                </div>
+                <div class="space-y-2">
+                  <template x-for="event in $store.hcai.filteredEvents().slice(0, 4)" :key="event.id">
+                    <div class="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                      <div class="flex items-center gap-2">
+                        <span class="h-2.5 w-2.5 rounded-full"
+                          :class="(event.log_level || '').toUpperCase() === 'CRITICAL' ? 'bg-rose-400' : (event.log_level || '').toUpperCase() === 'ERROR' ? 'bg-rose-300' : 'bg-emerald-300'"></span>
+                        <div>
+                          <p class="text-xs text-slate-200" x-text="event.log_message"></p>
+                          <p class="text-[10px] text-slate-500" x-text="event.source_id"></p>
+                        </div>
+                      </div>
+                      <span class="text-[10px] text-slate-500" x-text="event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : ''"></span>
+                    </div>
+                  </template>
+                  <div x-show="!$store.hcai.recentEvents.length" class="text-xs text-slate-500">No events yet.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section x-show="$store.hcai.activeTab === 'logs'" x-cloak class="glass-panel p-4 lg:p-6 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="section-title">Event stream</p>
+                <h3 class="text-lg font-semibold text-white">Logs and telemetry</h3>
+              </div>
+              <div class="flex items-center gap-2">
+                <input type="text" x-model="$store.hcai.logFilter" placeholder="Filter logs by text or level"
+                  class="bg-white/5 border border-white/10 rounded-xl text-sm px-3 py-2 focus:ring-2 focus:ring-sky-400">
+                <button class="ghost-button" @click="$store.hcai.loadLogs()">Reload</button>
+              </div>
+            </div>
+            <div x-show="$store.hcai.loadingLogs" class="text-sm text-slate-400">Loading events...</div>
+            <div data-component="log_table"></div>
+          </section>
+
+          <section x-show="$store.hcai.activeTab === 'agents'" x-cloak class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="section-title">Agents</p>
+                <h3 class="text-lg font-semibold text-white">Fleet heartbeat</h3>
+              </div>
+              <button class="ghost-button" @click="$store.hcai.loadAgents()">Refresh</button>
+            </div>
+            <div class="grid md:grid-cols-3 gap-3">
+              <template x-for="agent in $store.hcai.agents" :key="agent.id">
+                <div data-component="agent_status_card" x-data="{ agent }"></div>
+              </template>
+              <div x-show="!$store.hcai.agents.length" class="text-xs text-slate-500 px-4">No agents yet.</div>
+            </div>
+          </section>
+
+          <section x-show="$store.hcai.activeTab === 'control'" x-cloak class="grid lg:grid-cols-3 gap-4">
+            <div class="lg:col-span-2" data-component="control_action_panel"></div>
+            <div class="glass-panel p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="section-title">Controller</p>
+                  <h3 class="text-lg font-semibold text-white">Safety status</h3>
+                </div>
+                <span class="inline-flex items-center gap-2 text-xs text-emerald-300 bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-500/30">
+                  SLO intact
+                </span>
+              </div>
+              <div class="space-y-2 text-sm text-slate-300">
+                <div class="flex items-center justify-between">
+                  <span>Policy window</span>
+                  <span class="text-sky-200 font-semibold">15m</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span>Last action</span>
+                  <span class="text-emerald-200" x-text="$store.hcai.successMessage || 'Awaiting signal'"></span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span>Guardrails</span>
+                  <span class="text-amber-200">enabled</span>
+                </div>
+              </div>
+              <div class="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-emerald-400 via-sky-400 to-purple-400 w-5/6"></div>
+              </div>
+            </div>
+          </section>
+
+          <section x-show="$store.hcai.activeTab === 'automation'" x-cloak class="glass-panel p-4 lg:p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="section-title">Automation</p>
+                <h3 class="text-lg font-semibold text-white">Playbooks</h3>
+              </div>
+              <div class="flex items-center gap-2">
+                <button class="ghost-button text-xs" @click="$store.hcai.loadAutomation()">Refresh</button>
+                <button class="ghost-button text-xs" @click="$store.hcai.runAutomation('simulate')">Simulate</button>
+              </div>
+            </div>
+            <div x-show="$store.hcai.loadingAutomation" class="text-sm text-slate-400">Loading automation...</div>
+            <div class="grid md:grid-cols-2 gap-3">
+              <template x-for="job in $store.hcai.automationJobs" :key="job.id">
+                <div data-component="automation_job_item" x-data="{ job }"></div>
+              </template>
+              <div x-show="!$store.hcai.automationJobs.length" class="text-xs text-slate-500 px-2">No automation actions planned.</div>
+            </div>
+          </section>
+
+          <section x-show="$store.hcai.activeTab === 'intelligence'" x-cloak class="glass-panel p-4 lg:p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="section-title">Intelligence</p>
+                <h3 class="text-lg font-semibold text-white">Incident insights</h3>
+              </div>
+              <button class="ghost-button text-xs" @click="$store.hcai.loadIntelligence()">Refresh</button>
+            </div>
+            <div x-show="$store.hcai.loadingIntelligence" class="text-sm text-slate-400">Loading intelligence...</div>
+            <div class="space-y-3">
+              <template x-for="anom in $store.hcai.anomalies" :key="anom.id">
+                <div class="glass-panel p-3 flex items-start gap-3 border border-white/10">
+                  <div data-component="alert_badge" x-data="{ alert: anom }"></div>
+                  <div class="flex-1">
+                    <p class="text-sm font-semibold text-white" x-text="anom.summary || 'Incident'"></p>
+                    <p class="text-xs text-slate-400" x-text="'Source ' + (anom.source_id || '-')"></p>
+                  </div>
+                  <div class="text-right text-xs text-slate-400 space-y-1">
+                    <p x-text="'Risk ' + (anom.score || anom.risk || 0)"></p>
+                    <p x-text="anom.status"></p>
+                  </div>
+                </div>
+              </template>
+              <div x-show="!$store.hcai.anomalies.length" class="text-xs text-slate-500">No active incidents.</div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <div class="fixed bottom-4 right-4 space-y-2 z-50 max-w-sm">
+    <div x-show="$store.hcai.successMessage" x-transition class="flex items-start gap-3 glass-panel border border-emerald-500/40 px-4 py-3 shadow-glow">
+      <span class="h-2.5 w-2.5 rounded-full bg-emerald-400 mt-1"></span>
+      <div class="flex-1">
+        <p class="text-sm font-semibold text-emerald-200">Success</p>
+        <p class="text-sm text-slate-200" x-text="$store.hcai.successMessage"></p>
+      </div>
+      <button class="text-slate-400 hover:text-white" @click="$store.hcai.clearMessage('success')">x</button>
+    </div>
+    <div x-show="$store.hcai.errorMessage" x-transition class="flex items-start gap-3 glass-panel border border-rose-500/40 px-4 py-3 shadow-soft">
+      <span class="h-2.5 w-2.5 rounded-full bg-rose-400 mt-1"></span>
+      <div class="flex-1">
+        <p class="text-sm font-semibold text-rose-200">Error</p>
+        <p class="text-sm text-slate-200" x-text="$store.hcai.errorMessage"></p>
+      </div>
+      <button class="text-slate-400 hover:text-white" @click="$store.hcai.clearMessage('error')">x</button>
+    </div>
+  </div>
+
+  <div id="control-modal" tabindex="-1" aria-hidden="true" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 backdrop-blur-sm">
+    <div class="relative w-full max-w-lg p-4">
+      <div class="glass-panel p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="section-title">Control</p>
+            <h3 class="text-lg font-semibold text-white">Manual dispatch</h3>
+          </div>
+          <button type="button" class="text-slate-400 hover:text-white" data-modal-hide="control-modal">x</button>
+        </div>
+        <div class="space-y-3">
+          <label class="text-sm text-slate-300 flex items-center justify-between">
+            Action
+            <select class="mt-1 w-48 bg-white/5 border border-white/10 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-sky-400"
+              x-model="$store.hcai.controlAction">
+              <option value="scale_up">Scale up</option>
+              <option value="scale_down">Scale down</option>
+              <option value="restart_service">Restart service</option>
+              <option value="throttle_traffic">Throttle traffic</option>
+            </select>
+          </label>
+          <label class="text-sm text-slate-300">
+            Target
+            <input class="mt-1 w-full bg-white/5 border border-white/10 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-sky-400"
+              placeholder="cluster / node / service id" x-model="$store.hcai.controlTarget">
+          </label>
+          <label class="text-sm text-slate-300">
+            Runbook note
+            <textarea rows="3" class="mt-1 w-full bg-white/5 border border-white/10 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-sky-400"
+              placeholder="Add intent or scope" x-model="$store.hcai.controlNote"></textarea>
+          </label>
+          <div class="flex items-center justify-end gap-2 pt-2">
+            <button class="ghost-button" data-modal-hide="control-modal">Cancel</button>
+            <button class="px-4 py-2 rounded-xl bg-sky-500 text-slate-950 font-semibold shadow-glow" @click="$store.hcai.sendControlActionFromUI()" data-modal-hide="control-modal">Dispatch</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
