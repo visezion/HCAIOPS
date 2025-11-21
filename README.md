@@ -55,22 +55,54 @@ mkdocs serve
 - Nginx reverse proxy config lives in `deploy/nginx/`.
 - Compose files mount persistent volumes for logs/storage; see `docker-compose.prod.yml`.
 
-## Agent install on another server/PC
-1) Prereqs: Python 3.11+, network access to the API host.
-2) Clone and install agent:
+## Agent install on another server/PC (Windows, macOS, Linux)
+Prereqs: Python 3.11+, outbound HTTPS to your API host (e.g., `https://hcaiops.vicezion.com`), and a valid API token.
+
+### 1) Get the code
 ```bash
 git clone https://github.com/visezion/HCAIOPS.git
 cd HCAIOPS
-python -m venv venv && source venv/bin/activate  # Windows: .\venv\Scripts\Activate.ps1
+```
+
+### 2) Create a virtualenv and install the agent
+- Windows (PowerShell):
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
 pip install --upgrade pip
 pip install -e hcai_ops_agent
 ```
-3) Run the agent (example):
+- macOS/Linux (bash/zsh):
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -e hcai_ops_agent
+```
+
+### 3) Configure the agent endpoint and token
+Create the config file (defaults are Windows `C:/ProgramData/HCAI_AGENT/config.json`, macOS/Linux `~/.hcai_agent/config.json`). Example content:
+```json
+{
+  "api_url": "https://hcaiops.vicezion.com",
+  "token": "<your-token>",
+  "send_intervals": { "heartbeat": 10, "metrics": 15, "logs": 20, "flush": 60 },
+  "log_paths": { "linux": ["/var/log/syslog", "/var/log/messages"], "windows": ["Application", "System"] },
+  "queue_path": "~/.hcai_agent/queue.db"
+}
+```
+(You can override the path with the env var `HCAI_AGENT_CONFIG_PATH`.)
+
+### 4) Run the agent
 ```bash
 cd hcai_ops_agent
-python -m hcai_ops_agent.main --api-url http://<api-host>:8000 --api-key <api-key-if-required>
+python -m hcai_ops_agent.main
 ```
-4) Service install: use `scripts/install_agent.sh` (Linux) or `scripts/install_agent.ps1` (Windows) as templates to create a venv and register the agent as a service.
+The agent will post to `<api_url>/events/ingest`. If TLS is self-signed, trust the cert or use a valid one.
+
+### 5) Optional: run on boot
+- Windows: create a Scheduled Task (or use `scripts/install_agent.ps1` as a template) that runs the venv python with `-m hcai_ops_agent.main`.
+- macOS/Linux: systemd user service (`scripts/install_agent.sh` as a template) or a launchd plist on macOS.
 
 ## Ops quick references
 - Verify API: `curl http://localhost:8000/health`
