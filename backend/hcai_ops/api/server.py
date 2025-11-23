@@ -1,4 +1,7 @@
 from pathlib import Path
+from dataclasses import asdict
+from datetime import datetime
+from typing import Any
 
 from fastapi import FastAPI, APIRouter
 from fastapi.staticfiles import StaticFiles
@@ -11,6 +14,7 @@ from ..models.alert_model import AlertImportanceModel
 from ..models.risk_model import RiskModel
 from . import routes_actions, routes_alerts, routes_risk
 from hcai_ops.analytics.api import router as analytics_router
+from hcai_ops.analytics.processors import MetricAggregator
 from hcai_ops.intelligence.api import router as intelligence_router
 from hcai_ops.control.api import router as control_router
 from hcai_ops.console.router import router as console_router
@@ -29,6 +33,7 @@ from hcai_ops.intelligence.agent import agent_check_in, record_update_status
 from .swagger_custom import get_custom_swagger_ui_html, get_custom_redoc_html
 from pydantic import BaseModel
 import importlib.metadata
+from hcai_ops.data.schemas import HCaiEvent
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -48,6 +53,29 @@ storage = FileSystemStorage(settings.storage_dir)
 setattr(event_store, "storage", storage)
 agent = AgentEngine(event_store)
 asset_registry = AssetRegistry(storage=None)
+
+
+def _coerce_events(payload: Any) -> list[HCaiEvent]:
+    """Normalize inbound payload into HCaiEvent list."""
+    events: list[HCaiEvent] = []
+    if isinstance(payload, dict):
+        payload = [payload]
+    if not isinstance(payload, list):
+        return events
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        try:
+            ts = item.get("timestamp")
+            if isinstance(ts, str):
+                try:
+                    item["timestamp"] = datetime.fromisoformat(ts)
+                except Exception:
+                    item["timestamp"] = datetime.utcnow()
+            events.append(HCaiEvent(**item))
+        except Exception:
+            continue
+    return events
 
 
 @app.on_event("startup")
@@ -111,6 +139,45 @@ def agent_exec(plan: dict):
 @agent_router.get("/ping")
 def agent_ping(version: str = "0.0.0"):
     return agent_check_in(version)
+
+
+@app.get("/metrics/summary", tags=["analytics"])
+def metrics_summary():
+    """Lightweight summary for dashboards; returns zeros if no data."""
+    aggregator = MetricAggregator()
+    return aggregator.aggregate(event_store.all())
+
+
+@app.get("/agents", tags=["agents"])
+def list_agents():
+    """Placeholder agents list until a registry is wired up."""
+    return []
+
+
+@app.get("/api/analytics/metrics/summary", tags=["analytics"])
+def metrics_summary_api():
+    return metrics_summary()
+
+
+@app.get("/api/agents", tags=["agents"])
+def list_agents_api():
+    return list_agents()
+
+
+@app.post("/events/ingest", tags=["events"])
+@app.post("/api/events/ingest", tags=["events"])
+def ingest_events(payload: dict | list[dict]):
+    events = _coerce_events(payload)
+    if events:
+        event_store.add_events(events)
+    return {"received": len(events)}
+
+
+@app.get("/events/recent", tags=["events"])
+@app.get("/api/events/recent", tags=["events"])
+def recent_events(limit: int = 200):
+    events = list(reversed(event_store.all()))[:limit]
+    return [asdict(e) for e in events]
 
 
 class AgentReport(BaseModel):
