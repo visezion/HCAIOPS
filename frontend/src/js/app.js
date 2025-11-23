@@ -166,18 +166,29 @@ document.addEventListener('alpine:init', () => {
     async loadAgents() {
       this.loadingAgents = true;
       try {
-        const riskMap = await getAgentsStatus();
-        this.agents = Object.entries(riskMap || {}).map(([source_id, data]) => {
-          const risk = data?.risk || 0;
-          const status = risk >= 60 ? 'offline' : risk >= 30 ? 'degraded' : 'healthy';
+        const agents = await getAgentsStatus();
+        this.agents = (agents || []).map((agent) => {
+          const lastSeen = agent.last_seen ? new Date(agent.last_seen) : null;
+          const now = new Date();
+          const agoMs = lastSeen ? now - lastSeen : null;
+          const agoMinutes = agoMs !== null ? Math.max(0, Math.floor(agoMs / 60000)) : null;
+          const agoDisplay =
+            agoMinutes === null
+              ? 'unknown'
+              : agoMinutes < 1
+              ? 'just now'
+              : agoMinutes < 60
+              ? `${agoMinutes}m ago`
+              : `${Math.floor(agoMinutes / 60)}h ago`;
           return {
-            id: source_id,
-            name: source_id,
-            status,
-            latency: Math.round(10 + risk / 4),
-            heartbeat: new Date().toISOString(),
-            risk,
-            errors: data?.errors || 0,
+            id: agent.id || agent.name,
+            name: agent.name || agent.id || 'agent',
+            status: agent.status || 'unknown',
+            latency: agent.latency || null,
+            heartbeat: agent.last_seen || null,
+            lastSeenDisplay: agoDisplay,
+            risk: agent.risk || 0,
+            errors: agent.errors || 0,
           };
         });
         rehydrateLater();

@@ -1,6 +1,6 @@
 from pathlib import Path
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import FastAPI, APIRouter
@@ -34,6 +34,9 @@ from .swagger_custom import get_custom_swagger_ui_html, get_custom_redoc_html
 from pydantic import BaseModel
 import importlib.metadata
 from hcai_ops.data.schemas import HCaiEvent
+from hcai_ops.intelligence.api import _compute_all, get_risk as intel_get_risk, get_incidents as intel_get_incidents, get_recommendations as intel_get_recommendations, get_overview as intel_get_overview
+from hcai_ops.analytics.api import get_anomalies as analytics_get_anomalies, get_correlations as analytics_get_correlations, get_timeseries as analytics_get_timeseries
+from hcai_ops.control.api import get_plan as control_get_plan, execute_control as control_execute
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -150,8 +153,39 @@ def metrics_summary():
 
 @app.get("/agents", tags=["agents"])
 def list_agents():
-    """Placeholder agents list until a registry is wired up."""
-    return []
+    """Derive agents from recent heartbeats/metrics in the in-memory store."""
+    agents: dict[str, dict[str, Any]] = {}
+    now = datetime.utcnow().replace(tzinfo=None)
+    for event in event_store.all():
+        src = event.source_id
+        agents.setdefault(
+            src,
+            {
+                "id": src,
+                "name": src,
+                "last_seen": None,
+                "status": "unknown",
+                "latency": None,
+            },
+        )
+        agents[src]["last_seen"] = event.timestamp
+    for src, info in agents.items():
+        last_seen = info["last_seen"]
+        if last_seen is None:
+            info["status"] = "unknown"
+        else:
+            # normalize to naive for diff
+            if last_seen.tzinfo:
+                last_seen = last_seen.replace(tzinfo=None)
+            delta = (now - last_seen).total_seconds()
+            if delta <= 60:
+                info["status"] = "healthy"
+            elif delta <= 180:
+                info["status"] = "degraded"
+            else:
+                info["status"] = "offline"
+            info["latency"] = delta
+    return list(agents.values())
 
 
 @app.get("/api/analytics/metrics/summary", tags=["analytics"])
@@ -178,6 +212,91 @@ def ingest_events(payload: dict | list[dict]):
 def recent_events(limit: int = 200):
     events = list(reversed(event_store.all()))[:limit]
     return [asdict(e) for e in events]
+
+
+@app.post("/agents/{agent_id}/restart", tags=["agents"])
+@app.post("/api/agents/{agent_id}/restart", tags=["agents"])
+def restart_agent(agent_id: str):
+    """
+    Placeholder restart endpoint; in real deployments trigger a service restart.
+    """
+    # TODO: integrate with actual agent orchestration/service manager
+    return {"status": "accepted", "agent_id": agent_id, "message": "Restart requested (stub)." }
+
+
+@app.get("/api/intelligence/insights", tags=["intelligence"])
+def intelligence_insights():
+    """Map dashboard JS expectation to intelligence overview."""
+    data = _compute_all()
+    incidents = data.get("incidents") or []
+    risk = data.get("risk") or {}
+    recommendations = data.get("recommendations") or []
+    return {"incidents": incidents, "risk": risk, "recommendations": recommendations}
+
+
+@app.get("/analytics/summary", tags=["analytics"])
+def analytics_summary_alias():
+    """Alias for SPA endpoints without /api prefix."""
+    return metrics_summary()
+
+
+@app.get("/analytics/timeseries", tags=["analytics"])
+def analytics_timeseries_alias(minutes: int = 180):
+    cutoff = datetime.utcnow() - timedelta(minutes=minutes)
+    events = event_store.since(cutoff)
+    return [asdict(e) for e in events]
+
+
+@app.get("/ingest/events", tags=["events"])
+def ingest_events_alias(limit: int = 0):
+    """Alias to satisfy SPA ingest helper; returns recent events."""
+    return recent_events(limit or 200)
+
+
+# API-prefixed mirrors for SPA calls
+@app.get("/api/analytics/anomalies", tags=["analytics"])
+def analytics_anomalies_api():
+    return analytics_get_anomalies()
+
+
+@app.get("/api/analytics/correlations", tags=["analytics"])
+def analytics_correlations_api():
+    return analytics_get_correlations()
+
+
+@app.get("/api/analytics/timeseries", tags=["analytics"])
+def analytics_timeseries_api(minutes: int = 180):
+    return analytics_timeseries_alias(minutes)
+
+
+@app.get("/api/intelligence/overview", tags=["intelligence"])
+def intelligence_overview_api():
+    return intel_get_overview()
+
+
+@app.get("/api/intelligence/risk", tags=["intelligence"])
+def intelligence_risk_api():
+    return intel_get_risk()
+
+
+@app.get("/api/intelligence/incidents", tags=["intelligence"])
+def intelligence_incidents_api():
+    return intel_get_incidents()
+
+
+@app.get("/api/intelligence/recommendations", tags=["intelligence"])
+def intelligence_recommendations_api():
+    return intel_get_recommendations()
+
+
+@app.get("/api/control/plan", tags=["control"])
+def control_plan_api():
+    return control_get_plan()
+
+
+@app.post("/api/control/execute", tags=["control"])
+def control_execute_api(payload: dict | None = None):
+    return control_execute(payload or {})
 
 
 class AgentReport(BaseModel):

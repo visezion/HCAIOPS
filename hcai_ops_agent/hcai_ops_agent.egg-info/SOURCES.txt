@@ -7,6 +7,14 @@ pyproject.toml
 ./hcai_ops_agent/metrics.py
 ./hcai_ops_agent/sender.py
 ./hcai_ops_agent/system_info.py
+hcai_ops_agent/__init__.py
+hcai_ops_agent/config.py
+hcai_ops_agent/heartbeat.py
+hcai_ops_agent/logs.py
+hcai_ops_agent/main.py
+hcai_ops_agent/metrics.py
+hcai_ops_agent/sender.py
+hcai_ops_agent/system_info.py
 hcai_ops_agent.egg-info/PKG-INFO
 hcai_ops_agent.egg-info/SOURCES.txt
 hcai_ops_agent.egg-info/dependency_links.txt

@@ -62,3 +62,7 @@ def run():
         asyncio.run(run_loop(config))
     except KeyboardInterrupt:
         logger.info("Agent stopped")
+
+
+if __name__ == "__main__":
+    run()

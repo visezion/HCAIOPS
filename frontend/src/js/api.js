@@ -2,7 +2,12 @@ const API_BASE =
   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || '';
 
 // FastAPI is mounted at root ("/"); allow overriding through Vite env when bundled.
-const baseUrl = API_BASE || '';
+// When running vite dev (port 5173) default to localhost:8000.
+const baseUrl =
+  API_BASE ||
+  (typeof window !== 'undefined' && window.location && window.location.port === '5173'
+    ? 'http://localhost:8000'
+    : '');
 
 async function request(method, path, { body, headers, ...options } = {}) {
   const url = `${baseUrl}${path}`;
@@ -44,22 +49,22 @@ export const get = (path, options) => request('GET', path, options);
 export const post = (path, body, options) => request('POST', path, { ...options, body });
 
 // Real endpoint helpers based on FastAPI routers
-export const getMetricsSummary = () => get('/analytics/summary');
-export const getRecentEvents = (minutes = 180) => get(`/analytics/timeseries?minutes=${minutes}`);
-export const getLogAnomalies = () => get('/analytics/anomalies');
-export const getCorrelations = () => get('/analytics/correlations');
+export const getMetricsSummary = () => get('/api/analytics/metrics/summary');
+export const getRecentEvents = (minutes = 180) => get(`/api/events/recent?limit=${minutes}`);
+export const getLogAnomalies = () => get('/api/analytics/anomalies');
+export const getCorrelations = () => get('/api/analytics/correlations');
 
-export const getIntelligenceOverview = () => get('/intelligence/overview');
-export const getIntelligenceRisk = () => get('/intelligence/risk');
-export const getIntelligenceIncidents = () => get('/intelligence/incidents');
-export const getIntelligenceRecommendations = () => get('/intelligence/recommendations');
+export const getIntelligenceOverview = () => get('/api/intelligence/overview');
+export const getIntelligenceRisk = () => get('/api/intelligence/risk');
+export const getIntelligenceIncidents = () => get('/api/intelligence/incidents');
+export const getIntelligenceRecommendations = () => get('/api/intelligence/recommendations');
 
-export const getControlPlan = () => get('/control/plan');
-export const sendControlAction = (payload = {}) => post('/control/execute', payload);
+export const getControlPlan = () => get('/api/control/plan');
+export const sendControlAction = (payload = {}) => post('/api/control/execute', payload);
 
 // Automation: leverage control plan/actions as playbooks
 export const getAutomationJobs = () => getControlPlan();
 export const triggerAutomationJob = (payload = { dry_run: false }) => post('/control/execute', payload);
 
 // Agents derived from intelligence risk map
-export const getAgentsStatus = () => get('/intelligence/risk');
+export const getAgentsStatus = () => get('/api/agents');
