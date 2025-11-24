@@ -6,6 +6,7 @@ function dashboard() {
       insights: "/api/intelligence/insights",
       cooling: "/api/control/cooling",
       agent: "/api/agent/run",
+      agents: "/api/agents",
     },
     refreshSeconds: 10,
     latencyMs: 0,
@@ -24,6 +25,8 @@ function dashboard() {
     logs: [],
     logFilter: { level: "", source: "" },
     insights: [],
+    agents: [],
+    selectedAgent: null,
     cooling: { mode: "auto", fan_speed: 50, target_temp: 22 },
     controlMessage: "",
     agentCommand: "",
@@ -48,6 +51,7 @@ function dashboard() {
       this.refreshMetrics();
       this.refreshLogs();
       this.refreshInsights();
+      this.refreshAgents();
     },
 
     async refreshMetrics() {
@@ -95,6 +99,32 @@ function dashboard() {
         }
       } catch (e) {
         this.insights = [];
+      }
+    },
+
+    async refreshAgents() {
+      try {
+        const res = await fetch(this.endpoints.agents);
+        const json = await res.json();
+        this.agents = Array.isArray(json)
+          ? json.map((a) => ({
+              id: a.id || a.name || "agent",
+              name: a.name || a.id || "agent",
+              status: a.status || "unknown",
+              latency: a.latency || 0,
+              last_seen: a.last_seen,
+              risk: a.risk || 0,
+              errors: a.errors || 0,
+            }))
+          : [];
+        if (!this.selectedAgent && this.agents.length) {
+          this.selectedAgent = this.agents[0];
+        } else if (this.selectedAgent) {
+          const updated = this.agents.find((a) => a.id === this.selectedAgent.id);
+          if (updated) this.selectedAgent = updated;
+        }
+      } catch (e) {
+        this.agents = [];
       }
     },
 
@@ -179,6 +209,45 @@ function dashboard() {
       if (v > 0.6) return "High";
       if (v > 0.3) return "Moderate";
       return "Normal";
+    },
+
+    selectAgent(agent) {
+      this.selectedAgent = agent;
+      this.logFilter.source = agent?.id || "";
+    },
+
+    selectedAgentLogs() {
+      if (!this.selectedAgent) return [];
+      return this.logs
+        .filter((l) => (l.source_id || "").includes(this.selectedAgent.id))
+        .slice(0, 6);
+    },
+
+    agentStatusClass(status) {
+      const s = (status || "").toLowerCase();
+      if (s === "healthy") return "bg-emerald-500/20 text-emerald-200 border-emerald-400/30";
+      if (s === "degraded") return "bg-amber-500/20 text-amber-200 border-amber-400/30";
+      return "bg-rose-500/20 text-rose-200 border-rose-400/30";
+    },
+
+    lastSeenText(ts) {
+      if (!ts) return "unknown";
+      try {
+        const d = new Date(ts);
+        const diff = (Date.now() - d.getTime()) / 1000;
+        if (diff < 60) return "just now";
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        return `${Math.floor(diff / 3600)}h ago`;
+      } catch {
+        return ts;
+      }
+    },
+
+    agentRiskLabel(agent) {
+      const r = Number(agent?.risk || 0);
+      if (r > 0.7) return "High risk";
+      if (r > 0.4) return "Elevated";
+      return "Stable";
     },
 
     logLevelClass(level) {

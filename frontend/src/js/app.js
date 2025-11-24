@@ -11,6 +11,7 @@ import {
   getIntelligenceOverview,
   getLogAnomalies,
   sendControlAction,
+  submitFeedback,
 } from './api';
 
 const componentCache = {};
@@ -91,6 +92,14 @@ document.addEventListener('alpine:init', () => {
     agents: [],
     automationJobs: [],
     anomalies: [],
+    feedbackForm: {
+      incidentId: '',
+      decision: 'agree',
+      action: '',
+      notes: '',
+    },
+    feedbackStatus: '',
+    feedbackError: '',
 
     logFilter: '',
     controlTarget: 'cluster',
@@ -217,6 +226,9 @@ document.addEventListener('alpine:init', () => {
         const incidents = plan?.incidents || [];
         const actions = plan?.actions || {};
         this.controlPlan = plan || { incidents: [], recommendations: {}, actions: {}, risk: {} };
+        if (!this.feedbackForm.incidentId && incidents.length) {
+          this.feedbackForm.incidentId = incidents[0].incident_id;
+        }
         this.automationJobs = incidents.flatMap((inc) => {
           const incActions = actions[inc.incident_id] || [];
           return incActions.map((act, idx) => ({
@@ -236,6 +248,33 @@ document.addEventListener('alpine:init', () => {
         this.notifyError(error.message || 'Failed to load automation');
       } finally {
         this.loadingAutomation = false;
+      }
+    },
+
+    async submitFeedbackForm() {
+      this.feedbackStatus = '';
+      this.feedbackError = '';
+      try {
+        const incident = (this.controlPlan.incidents || []).find(
+          (i) => i.incident_id === this.feedbackForm.incidentId
+        );
+        const payload = {
+          incident_id: this.feedbackForm.incidentId,
+          source_id: incident?.source_id,
+          accepted: this.feedbackForm.decision === 'agree',
+          correct: this.feedbackForm.decision === 'agree',
+          action: this.feedbackForm.action || (this.controlPlan.actions?.[incident?.incident_id]?.[0]?.action || ''),
+          notes: this.feedbackForm.notes,
+          severity: incident?.severity,
+          recommended_action: this.controlPlan.recommendations?.[incident?.incident_id]?.recommended_action,
+          risk: incident?.risk,
+        };
+        await submitFeedback(payload);
+        this.feedbackStatus = 'Thanks, your feedback was recorded.';
+        this.feedbackForm.notes = '';
+        this.feedbackForm.action = '';
+      } catch (error) {
+        this.feedbackError = error.message || 'Failed to submit feedback';
       }
     },
 

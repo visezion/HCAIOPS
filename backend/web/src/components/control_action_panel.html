@@ -1,0 +1,57 @@
+<div class="glass-panel p-4 space-y-4" x-data="{}">
+  <div class="flex items-center justify-between gap-2">
+    <div>
+      <p class="text-sm font-semibold text-white">Autonomous control</p>
+      <p class="text-xs text-slate-400">Dispatch commands directly to the controller</p>
+    </div>
+    <button type="button" data-modal-target="control-modal" data-modal-toggle="control-modal" class="ghost-button">
+      Command palette
+    </button>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <label class="text-xs text-slate-300 space-y-1">
+      Target
+      <select class="w-full bg-white/5 border border-white/10 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-sky-400"
+        x-model="$store.hcai.controlTarget">
+        <option value="cluster">Cluster</option>
+        <option value="node">Node</option>
+        <option value="service">Service</option>
+      </select>
+    </label>
+    <label class="text-xs text-slate-300 space-y-1">
+      Action
+      <select class="w-full bg-white/5 border border-white/10 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-sky-400"
+        x-model="$store.hcai.controlAction">
+        <option value="scale_up">Scale up</option>
+        <option value="scale_down">Scale down</option>
+        <option value="restart_service">Restart service</option>
+        <option value="throttle_traffic">Throttle traffic</option>
+      </select>
+    </label>
+    <label class="text-xs text-slate-300 space-y-1">
+      Note
+      <input type="text" class="w-full bg-white/5 border border-white/10 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-sky-400"
+        placeholder="Intent or runbook" x-model="$store.hcai.controlNote">
+    </label>
+  </div>
+  <label class="text-xs text-slate-300 space-y-2 block">
+    JSON payload (optional)
+    <textarea rows="4" class="w-full bg-white/5 border border-white/10 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-sky-400"
+      x-model="$store.hcai.controlPayload" placeholder='{ "dry_run": false }'></textarea>
+  </label>
+  <div class="flex flex-wrap gap-2">
+    <button class="ghost-button justify-center" @click="$store.hcai.controlAction = 'scale_up'">Scale up</button>
+    <button class="ghost-button justify-center" @click="$store.hcai.controlAction = 'restart_service'">Restart</button>
+    <button class="ghost-button justify-center" @click="$store.hcai.controlAction = 'throttle_traffic'">Throttle</button>
+    <button class="ghost-button justify-center" @click="$store.hcai.controlAction = 'open_ticket'">Open ticket</button>
+  </div>
+  <div class="flex items-center justify-end gap-2 pt-2">
+    <button class="ghost-button" @click="$store.hcai.controlPayload = '{\\n  \"dry_run\": true\\n}'">Reset</button>
+    <button class="px-4 py-2 rounded-xl bg-sky-500 text-slate-950 font-semibold shadow-glow disabled:opacity-60"
+      :disabled="$store.hcai.loadingControlAction"
+      @click="$store.hcai.sendControlActionFromUI()">
+      <span x-show="$store.hcai.loadingControlAction">Sending...</span>
+      <span x-show="!$store.hcai.loadingControlAction">Dispatch</span>
+    </button>
+  </div>
+</div>

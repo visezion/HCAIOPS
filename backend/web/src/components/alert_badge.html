@@ -1,0 +1,11 @@
+<span class="inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-full border border-white/10"
+  :class="{
+    'bg-emerald-500/10 text-emerald-300': ['info','low'].includes(alert?.severity),
+    'bg-amber-500/10 text-amber-300': ['warn','warning','medium'].includes(alert?.severity),
+    'bg-rose-500/10 text-rose-300': ['critical','high'].includes(alert?.severity)
+  }">
+  <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-.75-5.75a.75.75 0 011.5 0v1.5a.75.75 0 01-1.5 0v-1.5zM10 6a.75.75 0 00-.75.75v3.5a.75.75 0 001.5 0v-3.5A.75.75 0 0010 6z" clip-rule="evenodd" />
+  </svg>
+  <span class="uppercase tracking-wide" x-text="alert?.label || alert?.severity || 'info'"></span>
+</span>

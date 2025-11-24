@@ -33,6 +33,11 @@ class ActionRecommender:
         Stores the full training DataFrame in action_history.
         """
         df = build_action_training_table(events)
+        if "applied_action" not in df.columns or df.empty:
+            self.model = None
+            self.action_history = None
+            return
+
         df = df.dropna(subset=["applied_action"])
         if df.empty:
             self.model = None

@@ -72,6 +72,7 @@ export const getIntelligenceRecommendations = () => get('/api/intelligence/recom
 
 export const getControlPlan = () => get('/api/control/plan');
 export const sendControlAction = (payload = {}) => post('/api/control/execute', payload);
+export const submitFeedback = (payload = {}) => post('/api/feedback', payload);
 
 // Automation: leverage control plan/actions as playbooks
 export const getAutomationJobs = () => getControlPlan();

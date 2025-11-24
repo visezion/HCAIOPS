@@ -47,18 +47,22 @@
             },
 
             async fetchMetrics() {
-                let res = await fetch("/metrics/summary");
-                let data = await res.json();
+                try {
+                    let res = await fetch("/api/analytics/metrics/summary");
+                    let data = await res.json();
 
-                this.metrics = Array.isArray(data) ? data : [];
+                    this.metrics = Array.isArray(data) ? data : [];
 
-                // Collect unique sources
-                this.sources = [...new Set(this.metrics.map(m => m.source_id))];
+                    // Collect unique sources
+                    this.sources = [...new Set(this.metrics.map(m => m.source_id))];
 
-                // Populate empty history arrays
-                this.metrics.forEach(m => {
-                    if (!m.history) m.history = [];
-                });
+                    // Populate empty history arrays
+                    this.metrics.forEach(m => {
+                        if (!m.history) m.history = [];
+                    });
+                } catch (e) {
+                    this.metrics = [];
+                }
             },
 
             init() {
@@ -73,7 +77,7 @@
 </head>
 <body class="page-bg text-slate-900 min-h-screen">
 
-<div class="max-w-6xl mx-auto px-4 py-8">
+<div class="page-shell">
   <div id="global-nav" class="mb-6"></div>
   <script>injectNav('global-nav', 'metrics');</script>
 

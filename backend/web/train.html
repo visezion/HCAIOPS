@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HCAI OPS | Train Models</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" />
+  <style>[x-cloak]{display:none !important;}</style>
+  <link rel="stylesheet" href="/web/style.css" />
+  <script src="/web/nav.js"></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body class="page-bg text-slate-900 min-h-screen">
+  <div class="page-shell space-y-6" x-data="trainer()">
+    <div id="global-nav" class="mb-6"></div>
+    <script>injectNav('global-nav', 'models');</script>
+
+    <div class="panel flex items-center justify-between px-4 py-3">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-xl bg-sky-100 border border-sky-200 flex items-center justify-center text-sky-700 font-bold">H</div>
+        <div>
+          <p class="text-xs text-slate-500 tracking-wide">HCAI OPS</p>
+          <p class="text-lg font-semibold text-slate-900">Model trainer</p>
+        </div>
+      </div>
+      <span class="inline-flex items-center px-3 py-1 rounded-full bg-white border border-slate-200 shadow-sm text-xs text-slate-600">
+        models_store outputs
+      </span>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-slate-500">Train from current data</p>
+            <p class="text-lg font-semibold text-slate-900">One-click training</p>
+          </div>
+          <span class="text-xs px-2 py-1 rounded-full" :class="statusClass" x-text="statusLabel"></span>
+        </div>
+        <p class="text-sm text-slate-600">Uses in-memory events (`/api/events/ingest` or `/agent/report`) to train risk, alert, and action models, then saves them to <code>models_store/</code>.</p>
+        <div class="flex flex-wrap gap-2">
+          <button class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg shadow-sm text-sm font-semibold disabled:opacity-50"
+            @click="train()" :disabled="busy">
+            <span x-show="!busy">Train all models</span>
+            <span x-show="busy">Training...</span>
+          </button>
+          <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-sm text-sm font-semibold disabled:opacity-50"
+            @click="seed()" :disabled="busy">
+            <span x-show="!busy">Seed demo data</span>
+            <span x-show="busy">Working...</span>
+          </button>
+          <a class="px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white hover:bg-slate-50"
+             href="/docs" target="_blank" rel="noreferrer">API Docs</a>
+          <a class="px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white hover:bg-slate-50"
+             href="/redoc" target="_blank" rel="noreferrer">ReDoc</a>
+        </div>
+        <p class="text-xs text-rose-600" x-text="error" x-show="error"></p>
+        <p class="text-xs text-emerald-600" x-text="message" x-show="message"></p>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div class="flex items-center justify-between mb-2">
+          <div>
+            <p class="text-sm text-slate-500">Results</p>
+            <p class="text-lg font-semibold text-slate-900">Latest run</p>
+          </div>
+          <button class="text-xs text-slate-500 underline" @click="clear()">Clear</button>
+        </div>
+        <pre class="text-xs bg-slate-900 text-slate-100 rounded-lg p-3 max-h-72 overflow-auto" x-text="prettyResult"></pre>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+         <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-slate-500">Train from Excel</p>
+            <p class="text-lg font-semibold text-slate-900">Dataset trainer</p>
+            <p class="text-xs text-slate-500">Runs backend/scripts/train_from_excel.py</p>
+          </div>
+          <span class="text-xs px-2 py-1 rounded-full" :class="excelStatusClass" x-text="excelStatusLabel"></span>
+        </div>
+        <div class="grid md:grid-cols-3 gap-3">
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Excel path
+            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="text" x-model="excelPath" placeholder="../data/borg_traces_data.csv">
+          </label>
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Sheet (optional)
+            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="text" x-model="excelSheet" placeholder="e.g., Şubat or List">
+          </label>
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Target column
+            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="text" x-model="excelTarget" placeholder="failed or event">
+          </label>
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Sample rows (optional)
+            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="number" min="1" x-model.number="excelSample" placeholder="e.g., 50000">
+          </label>
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Drop columns (comma-separated)
+            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="text" x-model="excelDropCols" placeholder="instance_events_type, collections_events_type">
+          </label>
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Time split column
+            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="text" x-model="excelTimeCol" placeholder="time or start_time">
+          </label>
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Time split ratio
+            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="number" step="0.05" min="0.1" max="0.95" x-model.number="excelTimeRatio" placeholder="0.8">
+          </label>
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Drop patterns (comma-separated)
+            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="text" x-model="excelDropPatterns" placeholder="id,time,index,collection">
+          </label>
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Class weight
+            <select class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" x-model="excelClassWeight">
+              <option value="">None</option>
+              <option value="balanced">Balanced</option>
+            </select>
+          </label>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-sm text-sm font-semibold disabled:opacity-50"
+            @click="trainExcel()" :disabled="excelBusy">
+            <span x-show="!excelBusy">Train from Excel</span>
+            <span x-show="excelBusy">Training...</span>
+          </button>
+          <span class="text-xs text-slate-500">Model saved to models_store/excel_model.pkl by default.</span>
+        </div>
+        <p class="text-xs text-rose-600" x-text="excelError" x-show="excelError"></p>
+        <p class="text-xs text-emerald-600" x-text="excelMessage" x-show="excelMessage"></p>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div class="flex items-center justify-between mb-2">
+          <div>
+            <p class="text-sm text-slate-500">Excel run</p>
+            <p class="text-lg font-semibold text-slate-900">Output</p>
+          </div>
+          <button class="text-xs text-slate-500 underline" @click="clearExcel()">Clear</button>
+        </div>
+        <div class="space-y-2">
+          <pre class="text-xs bg-slate-900 text-slate-100 rounded-lg p-3 max-h-48 overflow-auto" x-text="prettyExcelResult"></pre>
+          <div>
+            <p class="text-xs text-slate-500 mb-1">Stdout</p>
+            <pre class="text-xs bg-slate-900 text-emerald-100 rounded-lg p-3 max-h-40 overflow-auto" x-text="excelStdout"></pre>
+          </div>
+          <div>
+            <p class="text-xs text-slate-500 mb-1">Stderr</p>
+            <pre class="text-xs bg-slate-900 text-rose-100 rounded-lg p-3 max-h-28 overflow-auto" x-text="excelStderr"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3" x-data>
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-slate-500">Predict with trained model</p>
+            <p class="text-lg font-semibold text-slate-900">Use excel_model.pkl</p>
+          </div>
+          <button class="text-xs text-slate-500 underline" @click="predictInput = samplePredict()">Sample</button>
+        </div>
+        <div class="grid md:grid-cols-2 gap-3">
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Threshold (optional)
+            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="number" step="0.01" x-model.number="predictThreshold" placeholder="0.5">
+          </label>
+          <div class="text-xs text-slate-600">
+            <p class="mb-1">Features</p>
+            <button class="px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white hover:bg-slate-50" @click="loadFeatures()">Load feature list</button>
+            <p class="text-[11px] text-slate-500 mt-1 break-words" x-text="featuresJoined || 'unknown (load features)'"></p>
+          </div>
+        </div>
+        <label class="text-xs text-slate-600 flex flex-col gap-1">
+          Payload (one item JSON)
+          <textarea class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm h-32" x-model="predictInput"></textarea>
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <button class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg shadow-sm text-sm font-semibold disabled:opacity-50"
+            @click="runPredict()" :disabled="predictBusy">
+            <span x-show="!predictBusy">Run prediction</span>
+            <span x-show="predictBusy">Predicting...</span>
+          </button>
+          <p class="text-xs text-emerald-600" x-text="predictMessage" x-show="predictMessage"></p>
+          <p class="text-xs text-rose-600" x-text="predictError" x-show="predictError"></p>
+        </div>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div class="flex items-center justify-between mb-2">
+          <div>
+            <p class="text-sm text-slate-500">Prediction</p>
+            <p class="text-lg font-semibold text-slate-900">Result</p>
+          </div>
+          <button class="text-xs text-slate-500 underline" @click="predictResult = {}; predictMessage=''; predictError=''">Clear</button>
+        </div>
+        <pre class="text-xs bg-slate-900 text-slate-100 rounded-lg p-3 max-h-72 overflow-auto" x-text="prettyPredict"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function trainer() {
+      return {
+        busy: false,
+        result: {},
+        message: "",
+        error: "",
+        excelBusy: false,
+        excelResult: {},
+        excelMessage: "",
+        excelError: "",
+        excelPath: "../data/borg_traces_data.csv",
+        excelSheet: "",
+        excelTarget: "failed",
+        excelSample: null,
+        excelDropCols: "",
+        excelDropPatterns: "id,time,index,collection",
+        excelTimeCol: "",
+        excelTimeRatio: 0.8,
+        excelClassWeight: "balanced",
+        predictInput: "",
+        predictResult: {},
+        predictError: "",
+        predictMessage: "",
+        predictBusy: false,
+        predictThreshold: null,
+        featuresJoined: "",
+        get statusLabel() {
+          if (this.busy) return "Training";
+          if (this.error) return "Error";
+          if (this.result.status === "ok") return "Trained";
+          if (this.result.status === "partial") return "Partial";
+          return "Idle";
+        },
+        get statusClass() {
+          if (this.busy) return "bg-amber-100 text-amber-700";
+          if (this.error) return "bg-rose-100 text-rose-700";
+          if (this.result.status === "ok") return "bg-emerald-100 text-emerald-700";
+          if (this.result.status === "partial") return "bg-amber-100 text-amber-700";
+          return "bg-slate-100 text-slate-600";
+        },
+        get prettyResult() {
+          return Object.keys(this.result || {}).length ? JSON.stringify(this.result, null, 2) : "No run yet.";
+        },
+        get prettyExcelResult() {
+          return Object.keys(this.excelResult || {}).length ? JSON.stringify(this.excelResult, null, 2) : "No run yet.";
+        },
+        get excelStdout() {
+          const out = this.excelResult && (this.excelResult.stdout || (this.excelResult.stdout_lines || []).join("\\n"));
+          return out || "No stdout.";
+        },
+        get excelStderr() {
+          const out = this.excelResult && (this.excelResult.stderr || (this.excelResult.stderr_lines || []).join("\\n"));
+          return out || "No stderr.";
+        },
+        get excelStatusLabel() {
+          if (this.excelBusy) return "Training";
+          if (this.excelError) return "Error";
+          if (this.excelResult.status === "ok") return "Trained";
+          return "Idle";
+        },
+        get excelStatusClass() {
+          if (this.excelBusy) return "bg-amber-100 text-amber-700";
+          if (this.excelError) return "bg-rose-100 text-rose-700";
+          if (this.excelResult.status === "ok") return "bg-emerald-100 text-emerald-700";
+          return "bg-slate-100 text-slate-600";
+        },
+        clear() {
+          this.result = {};
+          this.message = "";
+          this.error = "";
+        },
+        clearExcel() {
+          this.excelResult = {};
+          this.excelMessage = "";
+          this.excelError = "";
+        },
+        async seed() {
+          this.busy = true;
+          this.error = "";
+          this.message = "";
+          try {
+            const res = await fetch("/api/events/seed_demo", { method: "POST" });
+            const data = await res.json();
+            this.result = data;
+            if (data.status === "ok") {
+              this.message = `Seeded ${data.added} demo events. You can now train.`;
+            } else {
+              this.error = data.message || "Seed failed.";
+            }
+          } catch (e) {
+            this.error = e.message || "Seed failed.";
+          } finally {
+            this.busy = false;
+          }
+        },
+        async train() {
+          this.busy = true;
+          this.error = "";
+          this.message = "";
+          try {
+            const res = await fetch("/api/models/train_all", { method: "POST" });
+            const data = await res.json();
+            this.result = data;
+            if (data.status === "ok") {
+              this.message = "Models trained and saved to models_store.";
+            } else {
+              this.error = data.message || "Training completed with issues.";
+            }
+          } catch (e) {
+            this.error = e.message || "Training failed.";
+          } finally {
+            this.busy = false;
+          }
+        },
+        async trainExcel() {
+          this.excelBusy = true;
+          this.excelError = "";
+          this.excelMessage = "";
+          try {
+            const payload = {
+              input: this.excelPath,
+              target: this.excelTarget,
+            };
+            if (this.excelSheet && this.excelSheet.trim()) payload.sheet = this.excelSheet.trim();
+            if (this.excelSample) payload.sample_rows = this.excelSample;
+            if (this.excelDropCols && this.excelDropCols.trim()) payload.drop_cols = this.excelDropCols;
+            if (this.excelDropPatterns && this.excelDropPatterns.trim()) payload.drop_patterns = this.excelDropPatterns;
+            if (this.excelTimeCol && this.excelTimeCol.trim()) payload.time_split_col = this.excelTimeCol.trim();
+            if (this.excelTimeRatio) payload.time_split_ratio = this.excelTimeRatio;
+            if (this.excelClassWeight) payload.class_weight = this.excelClassWeight;
+            const res = await fetch("/api/models/train_excel", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            this.excelResult = data;
+            if (data.status === "ok") {
+              this.excelMessage = "Excel training complete.";
+            } else {
+              this.excelError = data.message || data.stderr || "Excel training failed.";
+            }
+          } catch (e) {
+            this.excelError = e.message || "Excel training failed.";
+          } finally {
+            this.excelBusy = false;
+          }
+        },
+        async loadFeatures() {
+          try {
+            const res = await fetch("/api/models/excel_features");
+            const data = await res.json();
+            if (data.status === "ok") {
+              this.featuresJoined = data.features.join(", ");
+            } else {
+              this.predictError = data.message || "Failed to load features.";
+            }
+          } catch (e) {
+            this.predictError = e.message || "Failed to load features.";
+          }
+        },
+        samplePredict() {
+          // crude sample payload for convenience
+          const sample = {
+            page_cache_memory: 0.01,
+            cycles_per_instruction: 0.9,
+            average_usage_memory: 0.02,
+            average_usage_cpus: 0.05,
+            maximum_usage_memory: 0.03,
+            random_sample_usage_cpus: 0.04,
+            memory_accesses_per_instruction: 0.8,
+            maximum_usage_cpus: 0.06,
+            priority: 0.5,
+            cluster: 1,
+            assigned_memory: 0.02,
+            vertical_scaling: 0.0,
+            resource_request_cpus: 0.03,
+            scheduling_class: 2,
+            resource_request_memory: 0.01
+          };
+          return JSON.stringify(sample, null, 2);
+        },
+        get prettyPredict() {
+          return Object.keys(this.predictResult || {}).length ? JSON.stringify(this.predictResult, null, 2) : "No prediction yet.";
+        },
+        async runPredict() {
+          this.predictBusy = true;
+          this.predictError = "";
+          this.predictMessage = "";
+          try {
+            let item;
+            try {
+              item = JSON.parse(this.predictInput || "{}");
+            } catch (e) {
+              this.predictError = "Payload must be valid JSON";
+              this.predictBusy = false;
+              return;
+            }
+            const payload = { items: [item] };
+            if (this.predictThreshold !== null && this.predictThreshold !== undefined && this.predictThreshold !== "") {
+              payload.threshold = Number(this.predictThreshold);
+            }
+            const res = await fetch("/api/models/predict_excel", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (data.status === "ok") {
+              this.predictResult = data;
+              this.predictMessage = "Prediction complete.";
+            } else {
+              this.predictError = data.message || "Prediction failed.";
+            }
+          } catch (e) {
+            this.predictError = e.message || "Prediction failed.";
+          } finally {
+            this.predictBusy = false;
+          }
+        },
+      };
+    }
+  </script>
+</body>
+</html>

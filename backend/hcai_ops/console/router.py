@@ -1,14 +1,8 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse
-import click
 
 from hcai_ops.analytics import event_store
-from hcai_ops.control.loops import ControlLoop
 from hcai_ops.analytics.processors import MetricAggregator
-from hcai_ops.intelligence.risk import RiskScoringEngine
-from hcai_ops.intelligence.incidents import IncidentEngine
-from hcai_ops.intelligence.recommendations import RecommendationEngine
-from hcai_ops.control.policies import PolicyEngine
 
 router = APIRouter(prefix="/console", tags=["console"])
 
@@ -26,7 +20,14 @@ def dashboard(store=Depends(get_event_store)):
 
     total_events = len(events)
     sources = len({e.source_id for e in events})
-    log_count = sum(1 for e in events if e.event_type == "log")
+    log_events = [e for e in events if e.event_type == "log"]
+    log_count = len(log_events)
+    level_counts = {
+        "CRITICAL": sum(1 for e in log_events if (e.log_level or "").upper() == "CRITICAL"),
+        "ERROR": sum(1 for e in log_events if (e.log_level or "").upper() == "ERROR"),
+        "WARNING": sum(1 for e in log_events if (e.log_level or "").upper() == "WARNING"),
+        "INFO": sum(1 for e in log_events if (e.log_level or "").upper() == "INFO"),
+    }
     metric_count = sum(1 for e in events if e.event_type == "metric")
     hb_count = sum(1 for e in events if e.event_type == "heartbeat")
 
@@ -58,6 +59,38 @@ def dashboard(store=Depends(get_event_store)):
             }
         )
 
+    error_rows = []
+    for e in reversed(log_events):
+        lvl = (e.log_level or "").upper()
+        if lvl in {"ERROR", "CRITICAL"}:
+            error_rows.append(
+                {
+                    "timestamp": e.timestamp.isoformat() if hasattr(e.timestamp, "isoformat") else e.timestamp,
+                    "source": e.source_id,
+                    "level": lvl,
+                    "message": e.log_message or e.metric_name or e.event_type,
+                }
+            )
+    error_rows = error_rows[:30]
+
+    metric_table = "".join(
+        [
+            "<tr><td>{metric}</td><td>{source}</td><td>{avg}</td><td>{min}</td><td>{max}</td><td>{count}</td></tr>".format(
+                **m
+            )
+            for m in metric_rows
+        ]
+    ) or "<tr><td colspan='6' style='text-align:center;color:#94a3b8;padding:12px;'>No metrics yet.</td></tr>"
+
+    events_table = "".join(
+        [
+            "<tr><td>{timestamp}</td><td>{source}</td><td>{type}</td><td>{level}</td><td>{message}</td></tr>".format(
+                **r
+            )
+            for r in recent_rows
+        ]
+    ) or "<tr><td colspan='5' style='text-align:center;color:#94a3b8;padding:12px;'>No events yet.</td></tr>"
+
     html = f"""
 <!doctype html>
 <html lang="en">
@@ -78,167 +111,204 @@ def dashboard(store=Depends(get_event_store)):
       --muted: #94a3b8;
       --accent: #22d3ee;
       --red: #f43f5e;
-      --amber: #fbbf24;
-      --green: #34d399;
-      --blue: #38bdf8;
+      --amber: #f59e0b;
+      --green: #10b981;
+      --shadow: 0 16px 60px rgba(0,0,0,0.3);
     }}
-    * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
-      padding: 32px;
-      font-family: "Manrope", "Segoe UI", sans-serif;
-      background: radial-gradient(120% 120% at 10% 10%, rgba(34,211,238,0.12), transparent 45%), radial-gradient(120% 120% at 90% 20%, rgba(244,63,94,0.12), transparent 45%), var(--bg);
+      background: #0b1224;
       color: var(--text);
+      font-family: 'Manrope', system-ui, -apple-system, sans-serif;
     }}
-    h1 {{ font-size: 28px; margin: 0 0 8px 0; }}
-    h2 {{ font-size: 18px; margin: 0 0 12px 0; }}
-    p {{ margin: 0; color: var(--muted); }}
-    a.button {{
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      background: linear-gradient(135deg, var(--blue), var(--accent));
-      color: #0b1222;
-      font-weight: 700;
-      border-radius: 10px;
-      text-decoration: none;
-      border: 1px solid rgba(255,255,255,0.08);
-      box-shadow: 0 10px 30px rgba(56,189,248,0.25);
+    .page {{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
     }}
-    .grid {{ display: grid; gap: 16px; }}
-    .grid-4 {{ grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }}
     .card {{
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 16px;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+      padding: 18px;
+      box-shadow: var(--shadow);
     }}
-    .panel {{
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 16px;
-      backdrop-filter: blur(12px);
+    .summary-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin: 16px 0;
     }}
-    .stat-value {{ font-size: 24px; font-weight: 700; }}
     .pill {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-weight: 600;
+      font-size: 13px;
+    }}
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }}
+    th, td {{
+      border-bottom: 1px solid var(--border);
+      padding: 10px 8px;
+      text-align: left;
+    }}
+    th {{
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.02em;
+    }}
+    .badge {{
       display: inline-flex;
       align-items: center;
       gap: 6px;
       padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
       border: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 12px;
+      background: rgba(255,255,255,0.06);
     }}
-    table {{ width: 100%; border-collapse: collapse; }}
-    th, td {{
-      padding: 10px 12px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-      font-size: 13px;
-    }}
-    th {{ color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; }}
-    tr:hover td {{ background: rgba(255,255,255,0.03); }}
-    .badge {{ padding: 6px 10px; border-radius: 10px; font-weight: 700; font-size: 12px; }}
-    .badge.log {{ background: rgba(244,63,94,0.15); color: #fecdd3; border: 1px solid rgba(244,63,94,0.25); }}
-    .badge.metric {{ background: rgba(34,211,238,0.12); color: #a5f3fc; border: 1px solid rgba(34,211,238,0.3); }}
-    .badge.heartbeat {{ background: rgba(52,211,153,0.12); color: #bbf7d0; border: 1px solid rgba(52,211,153,0.3); }}
-    .level {{
-      padding: 4px 8px;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 12px;
-      border: 1px solid var(--border);
-    }}
-    .level.ERROR {{ background: rgba(244,63,94,0.18); color: #fecdd3; }}
-    .level.WARNING {{ background: rgba(251,191,36,0.18); color: #fef3c7; }}
-    .level.INFO {{ background: rgba(56,189,248,0.18); color: #bae6fd; }}
-    .level.CRITICAL {{ background: rgba(248,113,113,0.2); color: #ffe4e6; }}
+    .badge.red {{ color: var(--red); border-color: rgba(244,63,94,0.4); }}
+    .badge.amber {{ color: var(--amber); border-color: rgba(245,158,11,0.4); }}
+    .badge.green {{ color: var(--green); border-color: rgba(16,185,129,0.4); }}
+    .muted {{ color: var(--muted); }}
   </style>
 </head>
 <body>
-  <div class="grid" style="gap:24px;">
-    <div class="grid" style="gap:12px;">
-      <div style="display:flex; align-items:center; justify-content:space-between;">
+  <div class="page">
+    <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:14px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="height:44px;width:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.4);color:var(--accent);font-weight:700;font-size:18px;">H</div>
         <div>
-          <h1>HCAI OPS Console</h1>
-          <p>Live operational view powered by the event store.</p>
+          <div style="font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;">HCAI OPS</div>
+          <div style="font-size:20px;font-weight:700;">Console Overview</div>
         </div>
-        <a class="button" href="/console/plan">Recompute control plan</a>
       </div>
-      <div class="grid grid-4">
-        <div class="card">
-          <p class="pill">Events</p>
-          <div class="stat-value">{total_events}</div>
-          <p>Total ingested</p>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+        <div class="pill">Total events: {total_events}</div>
+        <div style="display:flex;gap:6px;">
+          <span class="badge green">Sources {sources}</span>
+          <span class="badge amber">Logs {log_count}</span>
+          <span class="badge">Metrics {metric_count}</span>
+          <span class="badge">Heartbeats {hb_count}</span>
         </div>
-        <div class="card">
-          <p class="pill">Sources</p>
-          <div class="stat-value">{sources}</div>
-          <p>Unique agents/services</p>
-        </div>
-        <div class="card">
-          <p class="pill">Logs</p>
-          <div class="stat-value">{log_count}</div>
-          <p>Log events</p>
-        </div>
-        <div class="card">
-          <p class="pill">Metrics</p>
-          <div class="stat-value">{metric_count}</div>
-          <p>Metric samples</p>
-        </div>
+      </div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="card">
+        <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">Events</div>
+        <div style="font-size:28px;font-weight:700;margin-top:4px;">{total_events}</div>
+        <div class="muted" style="font-size:12px;">Last 50 shown below</div>
       </div>
       <div class="card">
-        <h2>Metrics snapshot</h2>
+        <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">Sources</div>
+        <div style="font-size:28px;font-weight:700;margin-top:4px;">{sources}</div>
+        <div class="muted" style="font-size:12px;">Unique source_id count</div>
+      </div>
+      <div class="card">
+        <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">Logs</div>
+        <div style="font-size:28px;font-weight:700;margin-top:4px;color:var(--amber);">{log_count}</div>
+        <div class="muted" style="font-size:12px;">Log events</div>
+      </div>
+      <div class="card">
+        <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">Metrics</div>
+        <div style="font-size:28px;font-weight:700;margin-top:4px;color:var(--accent);">{metric_count}</div>
+        <div class="muted" style="font-size:12px;">Metric samples</div>
+      </div>
+      <div class="card">
+        <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">Errors</div>
+        <div style="font-size:28px;font-weight:700;margin-top:4px;color:var(--red);">{level_counts.get('ERROR',0) + level_counts.get('CRITICAL',0)}</div>
+        <div class="muted" style="font-size:12px;">Critical {level_counts.get('CRITICAL',0)} | Error {level_counts.get('ERROR',0)} | Warn {level_counts.get('WARNING',0)}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <div>
+          <div style="font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">Metrics</div>
+          <div style="font-size:18px; font-weight:700;">Aggregated stats</div>
+        </div>
+      </div>
+      <div style="overflow:auto;">
         <table>
           <thead>
             <tr>
-              <th>Metric</th><th>Source</th><th>Avg</th><th>Min</th><th>Max</th><th>Samples</th>
+              <th>Metric</th>
+              <th>Source</th>
+              <th>Avg</th>
+              <th>Min</th>
+              <th>Max</th>
+              <th>Count</th>
             </tr>
           </thead>
           <tbody>
-            {''.join([f"<tr><td>{m['metric']}</td><td>{m['source']}</td><td>{m['avg']}</td><td>{m['min']}</td><td>{m['max']}</td><td>{m['count']}</td></tr>" for m in metric_rows]) or '<tr><td colspan=\"6\">No metrics yet</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-      <div class="card">
-        <h2>Recent events</h2>
-        <table>
-          <thead>
-            <tr><th>Timestamp</th><th>Type</th><th>Source</th><th>Level</th><th>Message</th></tr>
-          </thead>
-          <tbody>
-            {''.join([f"<tr><td>{r['timestamp']}</td><td><span class='badge {r['type']}'>{r['type']}</span></td><td>{r['source']}</td><td><span class='level {r['level']}'>{r['level'] or '-'}</span></td><td>{r['message']}</td></tr>" for r in recent_rows]) or '<tr><td colspan=\"5\">No events yet</td></tr>'}
+            {metric_table}
           </tbody>
         </table>
       </div>
     </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <div>
+          <div style="font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">Recent events</div>
+          <div style="font-size:18px; font-weight:700;">Latest 50</div>
+        </div>
+      </div>
+      <div style="overflow:auto; max-height:400px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Source</th>
+              <th>Type</th>
+              <th>Level</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events_table}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <div>
+          <div style="font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">Critical & Errors</div>
+          <div style="font-size:18px; font-weight:700;">Latest</div>
+        </div>
+      </div>
+      <div style="overflow:auto; max-height:300px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Source</th>
+              <th>Level</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {"".join(["<tr><td>{timestamp}</td><td>{source}</td><td>{level}</td><td>{message}</td></tr>".format(**r) for r in error_rows]) or "<tr><td colspan='4' style='text-align:center;color:var(--muted);padding:12px;'>No errors yet.</td></tr>"}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 </body>
 </html>
 """
     return HTMLResponse(content=html)
-
-
-@router.get("/plan")
-def view_plan(store=Depends(get_event_store)):
-    loop = ControlLoop(
-        store,
-        RiskScoringEngine(),
-        IncidentEngine(),
-        RecommendationEngine(),
-        PolicyEngine(),
-    )
-    return loop.build_plan()
-
-
-@click.command("start-agent")
-def start_agent():
-    """Start the HCAI OPS local agent."""
-    from hcai_ops_agent.main import run
-
-    run()

@@ -183,6 +183,11 @@ def build_action_training_table(events: List[HCaiEvent]) -> pd.DataFrame:
         events_df["applied_action"].notna() | events_df["op_action_type"].notna()
     ].copy()
 
+    if actions_df.empty:
+        return pd.DataFrame(
+            columns=["incident_type", "cpu_before", "error_rate_before", "applied_action", "outcome_label"]
+        )
+
     def latest_metric_before(source_id: str, ts: pd.Timestamp, metric_name: str) -> float:
         subset = metrics_df[
             (metrics_df["source_id"] == source_id)

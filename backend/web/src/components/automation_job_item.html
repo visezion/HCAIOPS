@@ -1,0 +1,28 @@
+<div class="glass-panel p-4 flex items-center justify-between gap-4">
+  <div class="flex items-start gap-3">
+    <span class="inline-flex h-9 w-9 rounded-xl bg-emerald-500/10 text-emerald-300 items-center justify-center border border-emerald-500/20">
+      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h10" />
+      </svg>
+    </span>
+    <div>
+      <p class="text-sm font-semibold text-white" x-text="job.name || job.id"></p>
+      <p class="text-xs text-slate-400" x-text="job.description || 'Autonomous remediation pipeline'"></p>
+      <div class="mt-2 flex items-center gap-2">
+        <span class="inline-flex px-2 py-1 text-[11px] rounded-full border border-white/10"
+          :class="job.state === 'completed' ? 'bg-emerald-500/10 text-emerald-200' : job.state === 'running' ? 'bg-sky-500/10 text-sky-200' : 'bg-amber-500/10 text-amber-200'"
+          x-text="job.state || 'pending'"></span>
+        <span class="text-xs text-slate-400" x-text="job.updated_at ? new Date(job.updated_at).toLocaleTimeString() : 'live'"></span>
+      </div>
+    </div>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="text-xs px-3 py-1 rounded-full border border-white/10 bg-white/5" x-text="job.state || 'planned'"></span>
+    <button class="ghost-button" @click="$store.hcai.runAutomation(job.id)">
+      <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M3.172 3.172a4 4 0 015.656 0l.707.707.707-.707a4 4 0 115.656 5.656l-6.363 6.364a.75.75 0 01-1.06 0L3.172 8.828a4 4 0 010-5.656z" clip-rule="evenodd" />
+      </svg>
+      Run now
+    </button>
+  </div>
+</div>

@@ -8,6 +8,7 @@ const HCAI_NAV_LINKS = [
   { id: "metrics", label: "Metrics", href: "/web/metrics.html" },
   { id: "timeline", label: "Timeline", href: "/web/timeline.html" },
   { id: "assets", label: "Assets", href: "/web/assets.html" },
+  { id: "models", label: "Train models", href: "/web/train.html" },
   { id: "console", label: "Console", href: "/console" },
   { id: "new-ui", label: "New UI", href: "/" },
   { id: "api", label: "API Docs", href: "/docs", target: "_blank", rel: "noreferrer" },
@@ -21,7 +22,7 @@ function renderNav(activeId) {
     const target = link.target ? ` target="${link.target}"` : "";
     const rel = link.rel ? ` rel="${link.rel}"` : "";
     return `<a class="px-3 py-2 rounded-lg border text-sm font-medium transition ${activeClasses}" href="${link.href}" aria-label="${link.label}"${target}${rel}>${link.label}</a>`;
-  }).join("<span class=\"text-slate-400\">•</span>");
+  }).join('<span class="text-slate-400"> / </span>');
 
   return `
     <div class="bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm flex flex-wrap gap-2 items-center justify-between">
