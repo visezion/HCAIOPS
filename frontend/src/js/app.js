@@ -87,6 +87,7 @@ document.addEventListener('alpine:init', () => {
 
     metricsSummary: {},
     recentEvents: [],
+    controlPlan: { incidents: [], recommendations: {}, actions: {}, risk: {} },
     agents: [],
     automationJobs: [],
     anomalies: [],
@@ -124,7 +125,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     async loadOverview() {
-      await Promise.all([this.loadMetrics(), this.loadAgents(), this.loadIntelligence(), this.loadLogs()]);
+      await Promise.all([this.loadMetrics(), this.loadAgents(), this.loadIntelligence(), this.loadLogs(), this.loadAutomation()]);
       this.hasLoaded.overview = true;
     },
 
@@ -204,9 +205,18 @@ document.addEventListener('alpine:init', () => {
     async loadAutomation() {
       this.loadingAutomation = true;
       try {
-        const plan = await getAutomationJobs();
+        let plan = await getAutomationJobs();
+        if (!plan || !plan.incidents) {
+          try {
+            const res = await fetch('/console/plan');
+            if (res.ok) plan = await res.json();
+          } catch (e) {
+            // ignore fallback errors; handled below
+          }
+        }
         const incidents = plan?.incidents || [];
         const actions = plan?.actions || {};
+        this.controlPlan = plan || { incidents: [], recommendations: {}, actions: {}, risk: {} };
         this.automationJobs = incidents.flatMap((inc) => {
           const incActions = actions[inc.incident_id] || [];
           return incActions.map((act, idx) => ({

@@ -1,4 +1,5 @@
-<div class="glass-panel p-4 flex flex-col gap-3 hover:border-sky-500/30 transition-all">
+<div class="glass-panel p-4 flex flex-col gap-3 hover:border-sky-500/30 transition-all"
+  :class="agent.status === 'healthy' ? 'bg-emerald-50/5 border-emerald-400/30' : agent.status === 'degraded' ? 'bg-amber-50/5 border-amber-300/30' : 'bg-rose-50/5 border-rose-400/30'">
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
       <div class="relative">
@@ -18,7 +19,7 @@
     </div>
     <div class="text-right">
       <p class="text-xs text-slate-400">Latency</p>
-      <p class="text-sm text-slate-200" x-text="(agent.latency || 0) + ' ms'"></p>
+      <p class="text-sm text-slate-200" x-text="(agent.latency || 0).toFixed ? (agent.latency || 0).toFixed(0) + ' ms' : (agent.latency || 0) + ' ms'"></p>
     </div>
   </div>
   <div class="flex items-center justify-between text-xs text-slate-400">

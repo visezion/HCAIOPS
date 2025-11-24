@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from dataclasses import asdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import FastAPI, APIRouter
@@ -222,7 +222,9 @@ def list_agents():
                 "latency": None,
             },
         )
-        agents[src]["last_seen"] = event.timestamp
+        ts = event.timestamp
+        if ts is not None:
+            agents[src]["last_seen"] = ts if agents[src]["last_seen"] is None else max(agents[src]["last_seen"], ts)
     for src, info in agents.items():
         last_seen = info["last_seen"]
         if last_seen is None:
@@ -230,7 +232,7 @@ def list_agents():
         else:
             # normalize to naive for diff
             if last_seen.tzinfo:
-                last_seen = last_seen.replace(tzinfo=None)
+                last_seen = last_seen.astimezone(timezone.utc).replace(tzinfo=None)
             delta = (now - last_seen).total_seconds()
             if delta <= 60:
                 info["status"] = "healthy"
