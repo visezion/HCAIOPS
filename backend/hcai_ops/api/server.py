@@ -1,9 +1,11 @@
+import os
 from pathlib import Path
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import FastAPI, APIRouter
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi import Request
@@ -50,6 +52,25 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     openapi_url="/api/openapi.json",
+)
+cors_env = os.getenv("HCAI_CORS_ORIGINS", "")
+cors_overrides = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+allowed_origins = list(
+    {
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "https://hcaiops.vicezion.com",
+        "http://hcaiops.vicezion.com",
+        *cors_overrides,
+    }
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 config = HCAIConfig()
 storage = FileSystemStorage(settings.storage_dir)
@@ -146,9 +167,42 @@ def agent_ping(version: str = "0.0.0"):
 
 @app.get("/metrics/summary", tags=["analytics"])
 def metrics_summary():
-    """Lightweight summary for dashboards; returns zeros if no data."""
+    """Lightweight summary for dashboards; returns list with history and stats."""
     aggregator = MetricAggregator()
-    return aggregator.aggregate(event_store.all())
+    events = event_store.all()
+    summary = aggregator.aggregate(events)
+
+    history: dict[str, list[dict[str, object]]] = {}
+    # keep the 10 most recent samples per metric/source
+    for event in reversed(events):
+        if event.metric_name is None or event.metric_value is None:
+            continue
+        key = f"{event.metric_name}:{event.source_id}"
+        bucket = history.setdefault(key, [])
+        if len(bucket) >= 10:
+            continue
+        bucket.append(
+            {
+                "timestamp": event.timestamp.isoformat() if hasattr(event.timestamp, "isoformat") else None,
+                "value": event.metric_value,
+            }
+        )
+
+    results: list[dict[str, object]] = []
+    for key, stats in summary.items():
+        metric_name, source_id = key.split(":", 1)
+        results.append(
+            {
+                "metric_name": metric_name,
+                "source_id": source_id,
+                "metric_value": stats.get("avg"),
+                "min": stats.get("min"),
+                "max": stats.get("max"),
+                "count": stats.get("count"),
+                "history": list(reversed(history.get(key, []))),
+            }
+        )
+    return results
 
 
 @app.get("/agents", tags=["agents"])
@@ -212,6 +266,29 @@ def ingest_events(payload: dict | list[dict]):
 def recent_events(limit: int = 200):
     events = list(reversed(event_store.all()))[:limit]
     return [asdict(e) for e in events]
+
+
+@app.get("/logs/recent", tags=["events"])
+@app.get("/api/logs/recent", tags=["events"])
+def recent_logs(limit: int = 200):
+    """Return recent log events only."""
+    logs = [e for e in reversed(event_store.all()) if e.event_type == "log"][:limit]
+    normalized = []
+    for e in logs:
+        payload = asdict(e)
+        level = (payload.get("log_level") or "").strip()
+        if not level:
+            level = "INFO"
+        payload["log_level"] = level.upper()
+        payload["id"] = payload.get("id") or f"{payload.get('timestamp')}-{payload.get('source_id')}"
+        # Ensure message and timestamp are display-friendly
+        msg = payload.get("log_message")
+        payload["log_message"] = msg if isinstance(msg, str) else (str(msg) if msg is not None else "log event")
+        ts = payload.get("timestamp")
+        if hasattr(ts, "isoformat"):
+            payload["timestamp"] = ts.isoformat()
+        normalized.append(payload)
+    return normalized
 
 
 @app.post("/agents/{agent_id}/restart", tags=["agents"])

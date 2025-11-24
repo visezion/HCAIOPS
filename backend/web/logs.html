@@ -41,9 +41,9 @@
                     if (this.filters.search) {
                         const s = this.filters.search.toLowerCase();
                         if (
-                            !l.log_message.toLowerCase().includes(s) &&
-                            !l.source_id.toLowerCase().includes(s) &&
-                            !(l.extras?.raw_header || "").toLowerCase().includes(s)
+                            !(l.log_message || '').toString().toLowerCase().includes(s) &&
+                            !(l.source_id || '').toString().toLowerCase().includes(s) &&
+                            !(l.extras?.raw_header || "").toString().toLowerCase().includes(s)
                         ) {
                             ok = false;
                         }

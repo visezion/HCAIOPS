@@ -1,13 +1,23 @@
-const API_BASE =
-  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || '';
+const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || '';
+const RUNTIME_BASE =
+  (typeof window !== 'undefined' && window && (window.HCAI_API_BASE || window.__HCAI_API_BASE__)) || '';
 
-// FastAPI is mounted at root ("/"); allow overriding through Vite env when bundled.
-// When running vite dev (port 5173) default to localhost:8000.
-const baseUrl =
-  API_BASE ||
-  (typeof window !== 'undefined' && window.location && window.location.port === '5173'
-    ? 'http://localhost:8000'
-    : '');
+const normalizeBase = (url) => {
+  if (!url) return '';
+  return url.endsWith('/') ? url.slice(0, -1) : url;
+};
+
+const deriveBaseFromLocation = () => {
+  if (typeof window === 'undefined' || !window.location) return '';
+  const { origin, port, hostname } = window.location;
+  if (port === '5173') return 'http://localhost:8000';
+  if (origin && origin !== 'null' && !origin.startsWith('file://')) return origin;
+  if (hostname === 'hcaiops.vicezion.com') return 'https://hcaiops.vicezion.com';
+  return '';
+};
+
+// FastAPI is mounted at root ("/"); allow overriding through Vite env, a global at runtime, or location.
+const baseUrl = normalizeBase(API_BASE || RUNTIME_BASE || deriveBaseFromLocation() || 'https://hcaiops.vicezion.com');
 
 async function request(method, path, { body, headers, ...options } = {}) {
   const url = `${baseUrl}${path}`;
@@ -51,6 +61,7 @@ export const post = (path, body, options) => request('POST', path, { ...options,
 // Real endpoint helpers based on FastAPI routers
 export const getMetricsSummary = () => get('/api/analytics/metrics/summary');
 export const getRecentEvents = (minutes = 180) => get(`/api/events/recent?limit=${minutes}`);
+export const getRecentLogs = (limit = 200) => get(`/api/logs/recent?limit=${limit}`);
 export const getLogAnomalies = () => get('/api/analytics/anomalies');
 export const getCorrelations = () => get('/api/analytics/correlations');
 

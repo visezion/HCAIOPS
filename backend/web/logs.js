@@ -28,13 +28,10 @@ function logsPage() {
 
                 if (this.filters.search) {
                     const s = this.filters.search.toLowerCase();
-                    if (
-                        !l.log_message.toLowerCase().includes(s) &&
-                        !l.source_id.toLowerCase().includes(s) &&
-                        !l.extras.raw_header.toLowerCase().includes(s)
-                    ) {
-                        ok = false;
-                    }
+                    const msg = (l.log_message || "").toString().toLowerCase();
+                    const src = (l.source_id || "").toString().toLowerCase();
+                    const raw = (l.extras && l.extras.raw_header ? l.extras.raw_header : "").toString().toLowerCase();
+                    if (!msg.includes(s) && !src.includes(s) && !raw.includes(s)) ok = false;
                 }
 
                 return ok;
@@ -69,7 +66,17 @@ function logsPage() {
             let res = await fetch("/logs/recent");
             let data = await res.json();
 
-            this.logs = data;
+            this.logs = (Array.isArray(data) ? data : []).map((log, idx) => {
+                const level = (log.log_level || "INFO").toString().toUpperCase();
+                return {
+                    id: log.id || `${log.timestamp || idx}-${log.source_id || "unknown"}`,
+                    timestamp: log.timestamp || "",
+                    source_id: log.source_id || "unknown",
+                    log_level: level,
+                    log_message: (log.log_message || "").toString(),
+                    extras: log.extras || {}
+                };
+            });
             this.updateCounters();
         },
 

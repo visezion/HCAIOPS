@@ -20,6 +20,8 @@ except Exception:  # pragma: no cover - non-Windows
     win32evtlog = None
     win32evtlogutil = None
 
+warned_missing_win32 = False
+
 
 def _tail_file(path: Path, n: int = 200) -> List[str]:
     if not path.exists() or not path.is_file():
@@ -39,6 +41,11 @@ def collect_logs(config: AgentConfig) -> List[HCaiEvent]:
 
     if system.startswith("win"):
         if not win32evtlog:
+            global warned_missing_win32
+            if not warned_missing_win32:
+                warned_missing_win32 = True
+                # visible in agent logs when Windows Event Log support is missing
+                print("Warning: pywin32 not installed; Windows event logs will not be collected.")
             return events
         for log_name in config.log_paths.get("windows", ["Application", "System"]):
             try:
@@ -55,12 +62,20 @@ def collect_logs(config: AgentConfig) -> List[HCaiEvent]:
                         if fetched > 200:
                             break
                         msg = win32evtlogutil.SafeFormatMessage(rec, log_name)
+                        level_name = {
+                            0: "INFO",
+                            1: "ERROR",
+                            2: "ERROR",
+                            4: "WARNING",
+                            8: "INFO",
+                            16: "INFO",
+                        }.get(getattr(rec, "EventType", 0), "INFO")
                         events.append(
                             HCaiEvent(
                                 timestamp=ts,
                                 source_id=config.agent_id,
                                 event_type="log",
-                                log_level=str(rec.EventType),
+                                log_level=level_name,
                                 log_message=msg,
                                 extras={"log_name": log_name},
                             )
@@ -75,7 +90,7 @@ def collect_logs(config: AgentConfig) -> List[HCaiEvent]:
                         timestamp=ts,
                         source_id=config.agent_id,
                         event_type="log",
-                        log_level=None,
+                        log_level="INFO",
                         log_message=line.strip(),
                         extras={"path": path_str},
                     )

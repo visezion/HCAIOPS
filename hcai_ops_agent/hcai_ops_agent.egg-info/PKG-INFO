@@ -5,3 +5,5 @@ Summary: Lightweight HCAI OPS agent
 Requires-Python: >=3.10
 Requires-Dist: httpx
 Requires-Dist: hcai_ops
+Requires-Dist: psutil>=5.9
+Requires-Dist: pywin32>=306; platform_system == "Windows"

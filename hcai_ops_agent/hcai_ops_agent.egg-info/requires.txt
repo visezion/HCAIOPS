@@ -1,2 +1,6 @@
 httpx
 hcai_ops
+psutil>=5.9
+
+[:platform_system == "Windows"]
+pywin32>=306

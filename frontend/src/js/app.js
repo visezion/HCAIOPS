@@ -4,6 +4,7 @@ import 'flowbite';
 import {
   getMetricsSummary,
   getRecentEvents,
+  getRecentLogs,
   getAutomationJobs,
   triggerAutomationJob,
   getAgentsStatus,
@@ -143,14 +144,14 @@ document.addEventListener('alpine:init', () => {
     async loadLogs() {
       this.loadingLogs = true;
       try {
-        const events = await getRecentEvents(360);
-        this.recentEvents = Array.isArray(events)
-          ? events.map((event, idx) => ({
+        const logs = await getRecentLogs(200).catch(() => getRecentEvents(360));
+        this.recentEvents = Array.isArray(logs)
+          ? logs.map((event, idx) => ({
               id: event.id || event.incident_id || `evt-${idx}`,
               timestamp: event.timestamp,
               source_id: event.source_id || 'unknown',
-              log_level: event.log_level || (event.event_type || '').toUpperCase(),
-              log_message: event.log_message || event.metric_name || event.event_type,
+              log_level: (event.log_level || (event.event_type || '').toUpperCase() || 'INFO').toUpperCase(),
+              log_message: (event.log_message || event.metric_name || event.event_type || '').toString(),
               event_type: event.event_type || 'log',
             }))
           : [];
@@ -316,14 +317,37 @@ document.addEventListener('alpine:init', () => {
     },
 
     metricsList() {
-      return Object.entries(this.metricsSummary || {}).map(([key, stats]) => {
+      const summary = this.metricsSummary || {};
+      const fmt = (value, digits = 1) => {
+        if (value === null || value === undefined) return value;
+        const num = Number(value);
+        if (Number.isNaN(num)) return value;
+        return num.toFixed(digits);
+      };
+      if (Array.isArray(summary)) {
+        return summary.map((item) => {
+          const avg = item.metric_value ?? item.avg ?? 0;
+          const delta = fmt((item.max ?? avg) - (item.min ?? avg));
+          return {
+            name: item.metric_name,
+            source: item.source_id,
+            value: fmt(avg),
+            delta,
+            window: 'live',
+            score: Math.min(100, Math.round((avg || 0) * 100)),
+            updated_at: item.history?.[item.history.length - 1]?.timestamp || new Date().toISOString(),
+          };
+        });
+      }
+
+      return Object.entries(summary).map(([key, stats]) => {
         const [metric_name, source_id] = key.split(':');
         const avg = stats?.avg ?? 0;
-        const delta = ((stats?.max ?? avg) - (stats?.min ?? avg)).toFixed(2);
+        const delta = fmt((stats?.max ?? avg) - (stats?.min ?? avg));
         return {
           name: metric_name,
           source: source_id,
-          value: avg.toFixed ? avg.toFixed(2) : avg,
+          value: fmt(avg),
           delta,
           window: 'live',
           score: Math.min(100, Math.round((avg || 0) * 100)),

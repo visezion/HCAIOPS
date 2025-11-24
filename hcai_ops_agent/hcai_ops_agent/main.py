@@ -4,7 +4,9 @@ Main agent loop using asyncio.
 from __future__ import annotations
 
 import asyncio
+import argparse
 import logging
+from pathlib import Path
 
 from hcai_ops.data.schemas import HCaiEvent
 from .config import load_config, AgentConfig
@@ -56,8 +58,46 @@ async def run_loop(config: AgentConfig) -> None:
     )
 
 
-def run():
-    config = load_config()
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the HCAI OPS agent.")
+    parser.add_argument(
+        "--api-url",
+        dest="api_url",
+        help="Backend API root, e.g. https://hcaiops.vicezion.com (defaults to config/env).",
+    )
+    parser.add_argument("--token", dest="token", help="Bearer token used for Authorization.")
+    parser.add_argument("--agent-id", dest="agent_id", help="Explicit agent identifier to report with.")
+    parser.add_argument(
+        "--config-path",
+        dest="config_path",
+        help="Path to the agent config file (defaults to HCAI_AGENT_CONFIG_PATH or the OS default).",
+    )
+    parser.add_argument(
+        "--no-save",
+        action="store_true",
+        dest="no_save",
+        help="Do not persist CLI overrides back to the config file.",
+    )
+    return parser.parse_args(argv)
+
+
+def run(argv: list[str] | None = None):
+    args = _parse_args(argv)
+    cfg_path = Path(args.config_path).expanduser() if args.config_path else None
+    config = load_config(cfg_path)
+
+    if args.agent_id:
+        config.agent_id = args.agent_id
+    if args.api_url:
+        config.api_url = args.api_url.rstrip("/")
+    if args.token:
+        config.token = args.token
+
+    if not args.no_save and (args.agent_id or args.api_url or args.token or args.config_path):
+        save_path = cfg_path or None
+        config.save(save_path)
+
+    logger.info("Agent %s reporting to %s", config.agent_id, config.api_url)
     try:
         asyncio.run(run_loop(config))
     except KeyboardInterrupt:

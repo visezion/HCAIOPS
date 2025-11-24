@@ -3,6 +3,7 @@ System information collection utilities.
 """
 from __future__ import annotations
 
+import logging
 import platform
 import socket
 import time
@@ -13,6 +14,9 @@ try:
     import psutil
 except Exception:  # pragma: no cover - env without psutil
     psutil = None
+
+logger = logging.getLogger(__name__)
+_warned_missing_psutil = False
 
 
 def _safe_psutil_call(fn, default):
@@ -42,6 +46,10 @@ def collect_system_info() -> Dict[str, Any]:
             }
         )
     else:
+        global _warned_missing_psutil
+        if not _warned_missing_psutil:
+            logger.warning("psutil not installed; agent metrics will report zeros until installed.")
+            _warned_missing_psutil = True
         info.update(
             {
                 "cpu_percent": 0.0,
