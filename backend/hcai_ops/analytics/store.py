@@ -36,6 +36,13 @@ class EventStore:
             events = [e for e in events if e.event_type == event_type]
         return list(events)
 
+    def reload(self) -> int:
+        """
+        Reload backing storage if available. For in-memory store, this is a no-op.
+        Returns number of in-memory events after reload.
+        """
+        return len(self._events)
+
 
 class PersistentEventStore(EventStore):
     """
@@ -107,6 +114,12 @@ class PersistentEventStore(EventStore):
             "path": str(self._path),
         }
 
+    def reload(self) -> int:
+        """Reload events from JSONL into memory."""
+        self._events = []
+        self._load()
+        return len(self._events)
+
 
 class SQLiteEventStore(EventStore):
     """
@@ -117,7 +130,7 @@ class SQLiteEventStore(EventStore):
         super().__init__()
         self._path = path
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(self._path)
+        self.conn = sqlite3.connect(self._path, check_same_thread=False)
         self.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS events (
@@ -229,11 +242,20 @@ class SQLiteEventStore(EventStore):
         return out
 
     def stats(self) -> dict:
-        cur = self.conn.execute("SELECT COUNT(*) FROM events")
-        stored = cur.fetchone()[0]
+        try:
+            cur = self.conn.execute("SELECT COUNT(*) FROM events")
+            stored = cur.fetchone()[0]
+        except Exception:
+            stored = len(self._events)
         return {
             "backend": "sqlite",
             "path": str(self._path),
             "stored_events": stored,
             "in_memory": len(self._events),
         }
+
+    def reload(self) -> int:
+        """Reload events from SQLite into memory."""
+        self._events = []
+        self._load_all()
+        return len(self._events)

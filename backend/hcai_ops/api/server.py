@@ -45,7 +45,7 @@ from . import routes_actions, routes_alerts, routes_risk
 from hcai_ops.data.schemas import HCaiEvent
 from hcai_ops.intelligence.api import _compute_all, get_risk as intel_get_risk, get_incidents as intel_get_incidents, get_recommendations as intel_get_recommendations, get_overview as intel_get_overview
 from hcai_ops.analytics.api import get_anomalies as analytics_get_anomalies, get_correlations as analytics_get_correlations, get_timeseries as analytics_get_timeseries
-from hcai_ops.analytics.processors import LogAnomalyDetector
+from hcai_ops.analytics.processors import LogAnomalyDetector, MetricThresholdDetector
 from hcai_ops.control.api import get_plan as control_get_plan, execute_control as control_execute, get_control_loop
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -142,6 +142,7 @@ def _build_alerts(limit: int = 50) -> list[dict[str, object]]:
     """Compose alert-like payloads for the legacy UI from incidents/anomalies/logs."""
     alerts: list[dict[str, object]] = []
     now_iso = datetime.utcnow().isoformat()
+    events = event_store.all()
 
     for inc in intel_get_incidents() or []:
         alerts.append(
@@ -159,7 +160,26 @@ def _build_alerts(limit: int = 50) -> list[dict[str, object]]:
 
     if len(alerts) < limit:
         try:
-            anomalies = LogAnomalyDetector().detect(event_store.all()) or []
+            metric_anomalies = [a for a in MetricThresholdDetector().detect(events) if a.get("anomaly")]
+        except Exception:
+            metric_anomalies = []
+        for idx, anomaly in enumerate(metric_anomalies):
+            alerts.append(
+                {
+                    "alert_id": anomaly.get("id") or f"metric-anomaly-{idx}",
+                    "message": anomaly.get("message") or f"Metric {anomaly.get('metric')} anomaly",
+                    "source_id": anomaly.get("source_id") or "unknown",
+                    "severity": "CRITICAL",
+                    "timestamp": anomaly.get("timestamp") or now_iso,
+                    "metadata": anomaly,
+                }
+            )
+            if len(alerts) >= limit:
+                break
+
+    if len(alerts) < limit:
+        try:
+            anomalies = LogAnomalyDetector().detect(events) or []
         except Exception:
             anomalies = []
         for idx, anomaly in enumerate(anomalies):
@@ -473,15 +493,28 @@ def ingest_events(payload: dict | list[dict]):
 @app.get("/api/ingest/status", tags=["events"])
 def ingest_status():
     stats = {}
+    stats_error = None
+    if hasattr(event_store, "reload"):
+        try:
+            event_store.reload()
+        except Exception:
+            pass
+    # Reload from persistent store to ensure counts reflect disk.
     if hasattr(event_store, "stats"):
         try:
             stats = event_store.stats()
-        except Exception:
+        except Exception as exc:
             stats = {}
+            stats_error = str(exc)
+    stored = len(event_store.all())
+    path = stats.get("path") if isinstance(stats, dict) else None
     return {
         "status": "ok",
         "stats": stats,
-        "stored_events": len(event_store.all()),
+        "stats_error": stats_error,
+        "stored_events": stored,
+        "path": path,
+        "store_type": type(event_store).__name__,
     }
 
 
@@ -509,10 +542,7 @@ def recent_alerts(limit: int = 50):
     return _build_alerts(limit)
 
 
-@app.post("/api/models/train_all", tags=["models"])
-def train_all_models():
-    """Train risk, alert, and action models from current in-memory events."""
-    events = event_store.all()
+def _train_all(events: list[HCaiEvent]) -> dict[str, object]:
     if not events:
         return {"status": "error", "message": "No events available to train. Ingest data first."}
 
@@ -554,6 +584,48 @@ def train_all_models():
 
     results["status"] = "ok" if not any(k.endswith("_error") for k in results) else "partial"
     return results
+
+
+@app.post("/api/models/train_all", tags=["models"])
+def train_all_models():
+    """Train models using in-memory event store."""
+    events = event_store.all()
+    return _train_all(events)
+
+
+@app.post("/api/models/train_all_from_store", tags=["models"])
+def train_all_models_from_store_api():
+    """
+    Reload events from persistent storage (if available) and train models.
+    Useful when you want to ensure on-disk events are used even if the server was long-running.
+    """
+    if hasattr(event_store, "reload"):
+        try:
+            event_store.reload()
+        except Exception:
+            pass
+    events = event_store.all()
+    return _train_all(events)
+
+
+def train_all_models():
+    """Train risk, alert, and action models from current in-memory events."""
+    events = event_store.all()
+    return _train_all(events)
+
+
+def train_all_models_from_store():
+    """
+    Reload events from persistent storage (SQLite/JSONL) and train models.
+    Useful when the server has been running and you want to ensure DB events are used.
+    """
+    if hasattr(event_store, "reload"):
+        try:
+            event_store.reload()
+        except Exception:
+            pass
+    events = event_store.all()
+    return _train_all(events)
 
 
 class ExcelTrainRequest(BaseModel):

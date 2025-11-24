@@ -25,8 +25,10 @@ def create_time_windows(events: List[HCaiEvent], window_size_minutes: int) -> Li
 
     rows: List[Dict] = []
     for (source_id, window_start), group in df.groupby(["source_id", "window_start"]):
-        cpu_vals = group.loc[group["metric_name"] == "cpu", "metric_value"].dropna()
-        error_rate_vals = group.loc[group["metric_name"] == "error_rate", "metric_value"].dropna()
+        cpu_vals = group.loc[
+            group["metric_name"].isin({"cpu", "cpu_percent", "system.cpu_percent"}), "metric_value"
+        ].dropna()
+        error_rate_vals = group.loc[group["metric_name"].isin({"error_rate", "error.rate"}), "metric_value"].dropna()
         log_levels = (
             group.loc[group["event_type"] == "log", "log_level"]
             .fillna("")
@@ -159,7 +161,7 @@ def build_alert_training_table(events: List[HCaiEvent]) -> pd.DataFrame:
                 "alert_id": getattr(alert, "alert_id", None),
                 "source_id": source_id,
                 "timestamp": ts,
-                "severity": severity,
+                "severity": 0.0 if pd.isna(severity) else severity,
                 "cpu_at_alert": cpu_at_alert,
                 "error_rate_at_alert": error_rate_at_alert,
                 "log_count_last_5m": log_count,

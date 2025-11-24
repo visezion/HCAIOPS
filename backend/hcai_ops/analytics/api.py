@@ -5,7 +5,12 @@ from typing import List
 from fastapi import APIRouter, Depends
 
 from hcai_ops.analytics.store import EventStore
-from hcai_ops.analytics.processors import MetricAggregator, LogAnomalyDetector, CorrelationEngine
+from hcai_ops.analytics.processors import (
+    MetricAggregator,
+    LogAnomalyDetector,
+    CorrelationEngine,
+    MetricThresholdDetector,
+)
 from hcai_ops.analytics import event_store
 
 router = APIRouter(prefix="/analytics")
@@ -30,8 +35,12 @@ def get_timeseries(minutes: int = 60, store: EventStore = Depends(get_store)) ->
 
 @router.get("/anomalies")
 def get_anomalies(store: EventStore = Depends(get_store)) -> List[dict]:
-    detector = LogAnomalyDetector()
-    return detector.detect(store.all())
+    events = store.all()
+    log_detector = LogAnomalyDetector()
+    metric_detector = MetricThresholdDetector()
+    log_anomalies = log_detector.detect(events)
+    metric_anomalies = metric_detector.detect(events)
+    return log_anomalies + metric_anomalies
 
 
 @router.get("/correlations")

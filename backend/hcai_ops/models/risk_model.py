@@ -5,6 +5,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.dummy import DummyClassifier
 
 from ..data.preprocess import build_risk_training_table
 from ..data.schemas import HCaiEvent
@@ -42,13 +43,19 @@ class RiskModel:
         df = df.dropna(subset=[self.label_col])
 
         # NEW: Prevent crash when there is only 1 class or dataset is too small
-        if df[self.label_col].nunique() < 2 or len(df) < 2:
-            self.model = None
-            return {"accuracy": 0.0, "f1": 0.0, "note": "insufficient data"}
+        features = ensure_feature_order(df, self.feature_cols)
+        labels = df[self.label_col].to_numpy()
 
-        X_train, X_test, y_train, y_test = split_dataset(
-            df, self.feature_cols, self.label_col
-        )
+        if df[self.label_col].nunique() < 2 or len(df) < 5:
+            # Train a baseline model so downstream predictions still work.
+            self.model = DummyClassifier(strategy="most_frequent")
+            self.model.fit(features, labels)
+            y_pred = self.model.predict(labels)
+            metrics = evaluate_classification(labels, y_pred)
+            metrics["note"] = "trained baseline on single-class or small dataset"
+            return metrics
+
+        X_train, X_test, y_train, y_test = split_dataset(df, self.feature_cols, self.label_col)
 
         self.model = GradientBoostingClassifier()
         self.model.fit(X_train, y_train)

@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta
-from typing import Dict, List
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional
 
 from hcai_ops.data.schemas import HCaiEvent
 
@@ -82,4 +82,88 @@ class CorrelationEngine:
                             }
                         )
                         break
+        return findings
+
+
+class MetricThresholdDetector:
+    """
+    Flag metric samples that cross configured percentage thresholds.
+    Designed for agent metrics like cpu_percent/ram_percent/disk_percent.
+    """
+
+    DEFAULT_THRESHOLDS = {
+        "cpu": 85.0,
+        "cpu_percent": 85.0,
+        "system.cpu_percent": 85.0,
+        "ram_percent": 90.0,
+        "memory_percent": 90.0,
+        "disk_percent": 90.0,
+    }
+
+    def __init__(self, thresholds: Optional[Dict[str, float]] = None, lookback_minutes: int = 10) -> None:
+        self.thresholds = {**self.DEFAULT_THRESHOLDS, **(thresholds or {})}
+        self.lookback = timedelta(minutes=lookback_minutes)
+
+    @staticmethod
+    def _normalize_percent(value: object) -> Optional[float]:
+        try:
+            num = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+        # Accept either 0-1 or 0-100 values; normalize to 0-100.
+        if 0 <= num <= 1.5:
+            return num * 100.0
+        return num
+
+    def detect(self, events: List[HCaiEvent]) -> List[Dict[str, object]]:
+        now = datetime.now(timezone.utc)
+        cutoff = now - self.lookback
+
+        latest: Dict[str, tuple[datetime, HCaiEvent]] = {}
+        for event in events:
+            if event.event_type != "metric" or event.metric_name is None or event.metric_value is None:
+                continue
+            ts = event.timestamp
+            if ts is None:
+                continue
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            else:
+                ts = ts.astimezone(timezone.utc)
+            if ts < cutoff:
+                continue
+            key = f"{event.metric_name}:{event.source_id}"
+            if key not in latest or ts > latest[key][0]:
+                latest[key] = (ts, event)
+
+        findings: List[Dict[str, object]] = []
+        for key, (ts, evt) in latest.items():
+            metric_name, source_id = key.split(":", 1)
+            threshold = self.thresholds.get(metric_name)
+            if threshold is None:
+                continue
+            normalized_value = self._normalize_percent(evt.metric_value)
+            if normalized_value is None:
+                continue
+
+            is_anomaly = normalized_value >= threshold
+            message = (
+                f"High {metric_name}: {normalized_value:.1f}% >= {threshold}%"
+                if is_anomaly
+                else f"{metric_name} at {normalized_value:.1f}% (threshold {threshold}%)"
+            )
+
+            findings.append(
+                {
+                    "id": f"{metric_name}:{source_id}",
+                    "source_id": source_id,
+                    "metric": metric_name,
+                    "current_value": round(normalized_value, 2),
+                    "threshold": threshold,
+                    "anomaly": is_anomaly,
+                    "message": message,
+                    "timestamp": ts.isoformat() if hasattr(ts, "isoformat") else None,
+                    "type": "metric_threshold",
+                }
+            )
         return findings

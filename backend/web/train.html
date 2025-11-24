@@ -12,7 +12,7 @@
   <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
 <body class="page-bg text-slate-900 min-h-screen">
-  <div class="page-shell space-y-6" x-data="trainer()">
+  <div class="page-shell space-y-6" x-data="trainer()" x-init="loadStats()">
     <div id="global-nav" class="mb-6"></div>
     <script>injectNav('global-nav', 'models');</script>
 
@@ -45,6 +45,11 @@
             <span x-show="!busy">Train all models</span>
             <span x-show="busy">Training...</span>
           </button>
+          <button class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg shadow-sm text-sm font-semibold disabled:opacity-50"
+            @click="trainFromStore()" :disabled="busy">
+            <span x-show="!busy">Train from stored events</span>
+            <span x-show="busy">Training...</span>
+          </button>
           <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-sm text-sm font-semibold disabled:opacity-50"
             @click="seed()" :disabled="busy">
             <span x-show="!busy">Seed demo data</span>
@@ -57,6 +62,27 @@
         </div>
         <p class="text-xs text-rose-600" x-text="error" x-show="error"></p>
         <p class="text-xs text-emerald-600" x-text="message" x-show="message"></p>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-2">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-slate-500">Event store</p>
+            <p class="text-lg font-semibold text-slate-900">Stored events</p>
+          </div>
+          <button class="text-xs text-slate-500 underline" @click="loadStats()">Refresh</button>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="h-11 w-11 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-700 font-bold">
+            {{ }}
+          </div>
+          <div>
+            <p class="text-xl font-semibold text-slate-900" x-text="stats.countLabel"></p>
+            <p class="text-xs text-slate-500 break-words" x-text="stats.path || 'path unknown'"></p>
+          </div>
+        </div>
+        <p class="text-xs text-emerald-600" x-show="statsMessage" x-text="statsMessage"></p>
+        <p class="text-xs text-rose-600" x-show="statsError" x-text="statsError"></p>
       </div>
 
       <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
@@ -231,6 +257,9 @@
         predictBusy: false,
         predictThreshold: null,
         featuresJoined: "",
+        stats: {},
+        statsMessage: "",
+        statsError: "",
         get statusLabel() {
           if (this.busy) return "Training";
           if (this.error) return "Error";
@@ -291,6 +320,7 @@
             this.result = data;
             if (data.status === "ok") {
               this.message = `Seeded ${data.added} demo events. You can now train.`;
+              await this.loadStats();
             } else {
               this.error = data.message || "Seed failed.";
             }
@@ -313,10 +343,49 @@
             } else {
               this.error = data.message || "Training completed with issues.";
             }
+            await this.loadStats();
           } catch (e) {
             this.error = e.message || "Training failed.";
           } finally {
             this.busy = false;
+          }
+        },
+        async trainFromStore() {
+          this.busy = true;
+          this.error = "";
+          this.message = "";
+          try {
+            const res = await fetch("/api/models/train_all_from_store", { method: "POST" });
+            const data = await res.json();
+            this.result = data;
+            if (data.status === "ok" || data.status === "partial") {
+              this.message = `Trained using ${data.events_used || "stored"} events from DB.`;
+            } else {
+              this.error = data.message || "Training failed.";
+            }
+            await this.loadStats();
+          } catch (e) {
+            this.error = e.message || "Training failed.";
+          } finally {
+            this.busy = false;
+          }
+        },
+        async loadStats() {
+          try {
+            this.statsError = "";
+            this.statsMessage = "";
+            const res = await fetch("/api/ingest/status");
+            const data = await res.json();
+            const stored = data.stats?.stored_events ?? data.stats?.total_ingested ?? data.stored_events ?? 0;
+            const path = data.path || data.stats?.path || "storage/events.db";
+            this.stats = {
+              count: stored,
+              countLabel: `${stored} events`,
+              path,
+            };
+            this.statsMessage = "Stats refreshed.";
+          } catch (e) {
+            this.statsError = e.message || "Failed to load stats.";
           }
         },
         async trainExcel() {
