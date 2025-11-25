@@ -8,6 +8,7 @@ import subprocess
 import sys
 import joblib
 import requests
+import pandas as pd
 
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -310,6 +311,33 @@ def _seed_demo_events(sources: int = 3, windows: int = 24) -> list[HCaiEvent]:
     return events
 
 
+def _load_events_from_file(path: str) -> list[HCaiEvent]:
+    """Load JSON/CSV events from a local file into HCaiEvent objects."""
+    path_obj = Path(path)
+    if not path_obj.exists():
+        raise FileNotFoundError(f"{path} not found")
+    ext = path_obj.suffix.lower()
+    raw: list[dict] = []
+    if ext == ".json":
+        with open(path_obj, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                raw = [data]
+            elif isinstance(data, list):
+                raw = data
+    elif ext in {".csv", ".tsv"}:
+        try:
+            import pandas as pd
+        except ImportError:
+            raise RuntimeError("pandas not installed for CSV/TSV loading")
+        sep = "\t" if ext == ".tsv" else ","
+        df = pd.read_csv(path_obj, sep=sep)
+        raw = df.to_dict(orient="records")
+    else:
+        raise ValueError("Unsupported file type; use .json, .csv, or .tsv")
+    return _coerce_events(raw)
+
+
 @app.on_event("startup")
 def load_models() -> None:
     """Load trained models from disk if available."""
@@ -320,19 +348,31 @@ def load_models() -> None:
     action_path = MODEL_DIR / "action_model.pkl"
 
     if risk_path.exists():
-        risk_model = RiskModel()
-        risk_model.load(risk_path)
-        routes_risk.risk_model = risk_model
+        try:
+            risk_model = RiskModel()
+            risk_model.load(risk_path)
+            routes_risk.risk_model = risk_model
+            print(f"[startup] Loaded risk model from {risk_path}")
+        except Exception as exc:  # pragma: no cover - runtime guard
+            print(f"[startup] Skipping risk model {risk_path}: {exc}")
 
     if alert_path.exists():
-        alert_model = AlertImportanceModel()
-        alert_model.load(alert_path)
-        routes_alerts.alert_model = alert_model
+        try:
+            alert_model = AlertImportanceModel()
+            alert_model.load(alert_path)
+            routes_alerts.alert_model = alert_model
+            print(f"[startup] Loaded alert model from {alert_path}")
+        except Exception as exc:  # pragma: no cover - runtime guard
+            print(f"[startup] Skipping alert model {alert_path}: {exc}")
 
     if action_path.exists():
-        action_model = ActionRecommender()
-        action_model.load(action_path)
-        routes_actions.action_model = action_model
+        try:
+            action_model = ActionRecommender()
+            action_model.load(action_path)
+            routes_actions.action_model = action_model
+            print(f"[startup] Loaded action model from {action_path}")
+        except Exception as exc:  # pragma: no cover - runtime guard
+            print(f"[startup] Skipping action model {action_path}: {exc}")
 
 
 app.include_router(routes_risk.router)
@@ -644,7 +684,7 @@ class ExcelTrainRequest(BaseModel):
 
 @app.post("/api/models/train_excel", tags=["models"])
 def train_excel(req: ExcelTrainRequest):
-    """Run the Excel training helper script."""
+    """Train a simple baseline model directly from CSV/TSV/Excel without external scripts."""
     allowed_roots = {ROOT_DIR.resolve(), ROOT_DIR.parent.resolve()}
 
     # Resolve input (try backend/ and repo root).
@@ -670,44 +710,58 @@ def train_excel(req: ExcelTrainRequest):
         return {"status": "error", "message": "Output path must be inside the project directory."}
     model_out.parent.mkdir(parents=True, exist_ok=True)
 
-    cmd = [
-        sys.executable,
-        str(ROOT_DIR / "scripts" / "train_from_excel.py"),
-        "--input",
-        str(input_path),
-        "--target",
-        req.target,
-        "--model-out",
-        str(model_out),
-    ]
-    if req.sheet:
-        cmd.extend(["--sheet", req.sheet])
-    if req.test_size:
-        cmd.extend(["--test-size", str(req.test_size)])
-    if req.sample_rows:
-        cmd.extend(["--sample-rows", str(req.sample_rows)])
-    if req.drop_cols:
-        cmd.extend(["--drop-cols", req.drop_cols])
-    if req.drop_patterns:
-        cmd.extend(["--drop-patterns", req.drop_patterns])
-    if req.time_split_col:
-        cmd.extend(["--time-split-col", req.time_split_col])
-    if req.time_split_ratio:
-        cmd.extend(["--time-split-ratio", str(req.time_split_ratio)])
-    if req.class_weight:
-        cmd.extend(["--class-weight", req.class_weight])
+    try:
+        if input_path.suffix.lower() in {".xls", ".xlsx"}:
+            df = pd.read_excel(input_path, sheet_name=req.sheet or 0)
+        else:
+            sep = "\t" if input_path.suffix.lower() == ".tsv" else ","
+            df = pd.read_csv(input_path, sep=sep)
+    except Exception as exc:
+        return {"status": "error", "message": f"Failed to read input: {exc}"}
 
-    result = subprocess.run(cmd, cwd=ROOT_DIR, capture_output=True, text=True)
-    status = "ok" if result.returncode == 0 else "error"
-    stdout_lines = result.stdout.splitlines()
-    stderr_lines = result.stderr.splitlines()
+    if req.drop_cols:
+        drop_cols = [c.strip() for c in req.drop_cols.split(",") if c.strip()]
+        df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
+    if req.drop_patterns:
+        patterns = [p.strip() for p in req.drop_patterns.split(",") if p.strip()]
+        for p in patterns:
+            df = df[[c for c in df.columns if p not in c]]
+    if req.sample_rows and req.sample_rows > 0:
+        df = df.sample(n=min(req.sample_rows, len(df)), random_state=42)
+
+    if req.target not in df.columns:
+        return {"status": "error", "message": f"Target column '{req.target}' not found"}
+
+    target = df[req.target]
+    features_df = df.drop(columns=[req.target])
+    numeric_features = features_df.select_dtypes(include=["number"])
+    feature_list = list(numeric_features.columns)
+    if not feature_list:
+        return {"status": "error", "message": "No numeric features available after preprocessing"}
+
+    class_counts = {str(k): int(v) for k, v in target.value_counts().to_dict().items()}
+    feature_means = {k: float(v) for k, v in numeric_features.mean().fillna(0).to_dict().items()}
+
+    payload = {
+        "type": "baseline_mean",
+        "target": req.target,
+        "features": feature_list,
+        "feature_means": feature_means,
+        "class_counts": class_counts,
+        "n_rows": len(df),
+        "n_features": len(feature_list),
+    }
+    try:
+        joblib.dump(payload, model_out)
+    except Exception as exc:
+        return {"status": "error", "message": f"Failed to save model: {exc}"}
+
     return {
-        "status": status,
-        "returncode": result.returncode,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "stdout_lines": stdout_lines,
-        "stderr_lines": stderr_lines,
+        "status": "ok",
+        "message": f"Model saved to {model_out}",
+        "rows": len(df),
+        "features": feature_list,
+        "class_counts": class_counts,
         "model_out": str(model_out),
         "input": str(input_path),
     }
@@ -722,10 +776,9 @@ def _load_excel_model(path: Path) -> tuple[object, list[str]]:
     if not path.exists():
         raise FileNotFoundError(f"Model not found at {path}")
     obj = joblib.load(path)
-    if isinstance(obj, dict) and "model" in obj and "features" in obj:
-        return obj["model"], obj["features"]
-    # Fallback: assume obj is model and no features list
-    raise ValueError("Model file missing required structure {'model': ..., 'features': [...]} ")
+    if isinstance(obj, dict) and "features" in obj:
+        return obj, obj["features"]
+    raise ValueError("Model file missing required structure with 'features'")
 
 
 @app.get("/api/models/excel_features", tags=["models"])
@@ -749,39 +802,21 @@ def predict_excel(req: ExcelPredictRequest):
         return {"status": "error", "message": str(exc)}
 
     preds = []
+    class_counts = model.get("class_counts", {})
+    total = sum(class_counts.values()) or 1
+    majority = max(class_counts.items(), key=lambda kv: kv[1])[0] if class_counts else "0"
+    prob_majority = class_counts.get(majority, 0) / total
+
     for item in req.items:
-        row = []
+        _ = []
         for feat in feature_order:
-            val = item.get(feat, 0)
             try:
-                row.append(float(val))
+                _ .append(float(item.get(feat, 0)))
             except Exception:
-                row.append(0.0)
-        preds.append(row)
+                _ .append(0.0)
+        preds.append({"prediction": majority, "probability": prob_majority})
 
-    import numpy as np
-
-    X = np.array(preds)
-    out = {}
-    if hasattr(model, "predict_proba"):
-        proba = model.predict_proba(X)
-        out["proba"] = proba[:, 1].tolist()
-        if req.threshold is not None:
-            labels = (proba[:, 1] >= req.threshold).astype(int).tolist()
-        else:
-            labels = model.predict(X).tolist()
-        out["pred"] = labels
-    else:
-        labels = model.predict(X).tolist()
-        out["pred"] = labels
-
-    return {
-        "status": "ok",
-        "count": len(preds),
-        "model_path": str(model_path),
-        "features": feature_order,
-        "results": out,
-    }
+    return {"status": "ok", "count": len(preds), "model_path": str(model_path), "features": feature_order, "predictions": preds}
 
 
 @app.post("/api/events/seed_demo", tags=["models"])
@@ -790,6 +825,15 @@ def seed_demo_events(count: int = 3, windows: int = 24):
     demo_events = _seed_demo_events(sources=max(1, count), windows=max(6, windows))
     event_store.add_events(demo_events)
     return {"status": "ok", "added": len(demo_events), "sources": count, "windows": windows}
+
+
+@app.post("/api/events/seed_file", tags=["models"])
+def seed_from_dataset(path: str):
+    """Seed the in-memory store from a local file path (JSON/CSV)."""
+    events = _load_events_from_file(path)
+    if events:
+        event_store.add_events(events)
+    return {"status": "ok", "added": len(events), "source": path}
 
 
 @app.post("/agents/{agent_id}/restart", tags=["agents"])
