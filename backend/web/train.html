@@ -138,7 +138,7 @@
           </label>
           <label class="text-xs text-slate-600 flex flex-col gap-1">
             Drop patterns (comma-separated)
-            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="text" x-model="excelDropPatterns" placeholder="id,time,index,collection">
+            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="text" x-model="excelDropPatterns" placeholder="optional, e.g., id,time,index,collection">
           </label>
           <label class="text-xs text-slate-600 flex flex-col gap-1">
             Class weight
@@ -146,6 +146,26 @@
               <option value="">None</option>
               <option value="balanced">Balanced</option>
             </select>
+          </label>
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Test size (0.1 - 0.4)
+            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="number" step="0.05" min="0.1" max="0.4" x-model.number="excelTestSize" placeholder="0.2">
+          </label>
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Model type
+            <select class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" x-model="excelModelType">
+              <option value="gb">Gradient Boosting</option>
+              <option value="logreg">Logistic Regression</option>
+              <option value="baseline">Baseline</option>
+            </select>
+          </label>
+          <label class="text-xs text-slate-600 flex items-center gap-2">
+            <input type="checkbox" class="rounded border-slate-300" x-model="excelScale">
+            Scale numeric features
+          </label>
+          <label class="text-xs text-slate-600 flex flex-col gap-1">
+            Decision threshold (optional)
+            <input class="input bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" type="number" step="0.01" min="0" max="1" x-model.number="excelThreshold" placeholder="0.5">
           </label>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -246,10 +266,14 @@
         excelTarget: "failed",
         excelSample: null,
         excelDropCols: "",
-        excelDropPatterns: "id,time,index,collection",
+        excelDropPatterns: "",
         excelTimeCol: "",
         excelTimeRatio: 0.8,
         excelClassWeight: "balanced",
+        excelTestSize: 0.2,
+        excelModelType: "gb",
+        excelScale: true,
+        excelThreshold: null,
         predictInput: "",
         predictResult: {},
         predictError: "",
@@ -404,6 +428,10 @@
             if (this.excelTimeCol && this.excelTimeCol.trim()) payload.time_split_col = this.excelTimeCol.trim();
             if (this.excelTimeRatio) payload.time_split_ratio = this.excelTimeRatio;
             if (this.excelClassWeight) payload.class_weight = this.excelClassWeight;
+            if (this.excelTestSize) payload.test_size = this.excelTestSize;
+            if (this.excelModelType) payload.model_type = this.excelModelType;
+            payload.scale_numeric = !!this.excelScale;
+            if (this.excelThreshold !== null && this.excelThreshold !== undefined) payload.decision_threshold = this.excelThreshold;
             const res = await fetch("/api/models/train_excel", {
               method: "POST",
               headers: { "Content-Type": "application/json" },

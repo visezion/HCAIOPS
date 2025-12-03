@@ -1,0 +1,97 @@
+<div class="w-full px-4 lg:px-6 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between glass-panel rounded-2xl" x-data="{}">
+  <div class="flex flex-wrap items-center gap-3 md:gap-4 w-full">
+    <div class="hidden md:flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2">
+      <button class="text-xs px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100"
+        :class="$store.hcai.activeTab === 'overview' ? 'bg-sky-50 text-slate-900 border-sky-200' : 'text-slate-600'"
+        @click="$store.hcai.setTab('overview')">
+        Overview
+      </button>
+      <button class="text-xs px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100"
+        :class="$store.hcai.activeTab === 'logs' ? 'bg-sky-50 text-slate-900 border-sky-200' : 'text-slate-600'"
+        @click="$store.hcai.setTab('logs')">
+        Logs
+      </button>
+      <button class="text-xs px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100"
+        :class="$store.hcai.activeTab === 'automation' ? 'bg-sky-50 text-slate-900 border-sky-200' : 'text-slate-600'"
+        @click="$store.hcai.setTab('automation')">
+        Automation
+      </button>
+      <button class="text-xs px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100"
+        :class="$store.hcai.activeTab === 'agents' ? 'bg-sky-50 text-slate-900 border-sky-200' : 'text-slate-600'"
+        @click="$store.hcai.setTab('agents')">
+        Agents
+      </button>
+      <button class="text-xs px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100"
+        :class="$store.hcai.activeTab === 'intelligence' ? 'bg-sky-50 text-slate-900 border-sky-200' : 'text-slate-600'"
+        @click="$store.hcai.setTab('intelligence')">
+        Intelligence
+      </button>
+      <button class="text-xs px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100"
+        :class="$store.hcai.activeTab === 'control' ? 'bg-sky-50 text-slate-900 border-sky-200' : 'text-slate-600'"
+        @click="$store.hcai.setTab('control')">
+        Control
+      </button>
+    </div>
+    <div class="hidden sm:flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2">
+      <span class="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+      <p class="text-xs text-slate-600">Agents synchronized</p>
+    </div>
+    <nav class="hidden lg:flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-xs text-slate-600">
+      <a class="hover:text-slate-900 transition" href="/" aria-label="Dashboard">Dashboard</a>
+      <span class="text-slate-400">/</span>
+      <a class="hover:text-slate-900 transition" href="/console" aria-label="Console">Console</a>
+      <span class="text-slate-400">/</span>
+      <a class="hover:text-slate-900 transition" href="/intelligence" aria-label="Intelligence">Intelligence</a>
+      <span class="text-slate-400">/</span>
+      <a class="hover:text-slate-900 transition" href="/agent" aria-label="Agents">Agents</a>
+      <span class="text-slate-400">/</span>
+      <a class="hover:text-slate-900 transition" href="/web/train.html" aria-label="Model Trainer">HCAI OPS Model Trainer</a>
+      <span class="text-slate-400">/</span>
+      <a class="hover:text-slate-900 transition" href="/docs" aria-label="API Docs" target="_blank" rel="noreferrer">API Docs</a>
+    </nav>
+    <nav class="flex lg:hidden items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-[11px] text-slate-600 overflow-x-auto no-scrollbar w-full md:w-auto">
+      <a class="hover:text-slate-900 transition whitespace-nowrap" href="/" aria-label="Dashboard">Dashboard</a>
+      <span class="text-slate-400">/</span>
+      <a class="hover:text-slate-900 transition whitespace-nowrap" href="/console" aria-label="Console">Console</a>
+      <span class="text-slate-400">/</span>
+      <a class="hover:text-slate-900 transition whitespace-nowrap" href="/intelligence" aria-label="Intelligence">Intelligence</a>
+      <span class="text-slate-400">/</span>
+      <a class="hover:text-slate-900 transition whitespace-nowrap" href="/agent" aria-label="Agents">Agents</a>
+      <span class="text-slate-400">/</span>
+      <a class="hover:text-slate-900 transition whitespace-nowrap" href="/web/train.html" aria-label="Model Trainer">HCAI OPS Model Trainer</a>
+      <span class="text-slate-400">/</span>
+      <a class="hover:text-slate-900 transition whitespace-nowrap" href="/docs" aria-label="API Docs" target="_blank" rel="noreferrer">API Docs</a>
+    </nav>
+    <div class="relative flex-1 min-w-[240px] md:min-w-[280px] md:max-w-sm">
+      <input type="text" placeholder="Search intents, signals, playbooks..." class="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm w-full md:w-72 lg:w-80 focus:ring-2 focus:ring-sky-400 focus:outline-none placeholder:text-slate-500">
+      <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13 13l3.5 3.5M9.5 15a5.5 5.5 0 100-11 5.5 5.5 0 000 11z" />
+      </svg>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end flex-wrap">
+    <div class="hidden md:flex items-center gap-3 flex-wrap">
+      <template x-for="agent in $store.hcai.agents" :key="agent.id">
+        <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+          <span class="relative flex h-3 w-3">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
+              :class="agent.status === 'healthy' ? 'bg-emerald-400' : agent.status === 'degraded' ? 'bg-amber-300' : 'bg-rose-400'"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3"
+              :class="agent.status === 'healthy' ? 'bg-emerald-400' : agent.status === 'degraded' ? 'bg-amber-300' : 'bg-rose-400'"></span>
+          </span>
+          <div>
+            <p class="text-xs text-slate-300" x-text="agent.name"></p>
+            <p class="text-[10px] text-slate-500" x-text="'latency ' + (agent.latency || 0) + 'ms'"></p>
+          </div>
+        </div>
+      </template>
+    </div>
+    <button class="inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10">
+      <svg class="w-5 h-5 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l3 3" />
+        <circle cx="12" cy="12" r="9" />
+      </svg>
+    </button>
+  </div>
+</div>

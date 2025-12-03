@@ -6,9 +6,21 @@ from typing import Any
 import random
 import subprocess
 import sys
+import ast
 import joblib
 import requests
 import pandas as pd
+import numpy as np
+try:
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.ensemble import GradientBoostingClassifier
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+    from sklearn.utils.class_weight import compute_sample_weight
+    from sklearn.preprocessing import StandardScaler
+    SKLEARN_AVAILABLE = True
+except Exception:  # pragma: no cover - optional dependency
+    SKLEARN_AVAILABLE = False
 
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -438,6 +450,10 @@ def metrics_summary():
     aggregator = MetricAggregator()
     events = event_store.all()
     summary = aggregator.aggregate(events)
+    active_sources = {a["id"] for a in list_agents()}
+    if not active_sources:
+        # No active agents; do not surface stale/offline metrics.
+        return []
 
     history: dict[str, list[dict[str, object]]] = {}
     # keep the 10 most recent samples per metric/source
@@ -458,6 +474,8 @@ def metrics_summary():
     results: list[dict[str, object]] = []
     for key, stats in summary.items():
         metric_name, source_id = key.split(":", 1)
+        if active_sources and source_id not in active_sources:
+            continue
         results.append(
             {
                 "metric_name": metric_name,
@@ -508,7 +526,8 @@ def list_agents():
             else:
                 info["status"] = "offline"
             info["latency"] = delta
-    return list(agents.values())
+    # Hide agents that have been offline for too long from consumers of this endpoint.
+    return [agent for agent in agents.values() if agent.get("status") != "offline"]
 
 
 @app.get("/api/analytics/metrics/summary", tags=["analytics"])
@@ -680,6 +699,9 @@ class ExcelTrainRequest(BaseModel):
     time_split_col: str | None = None
     time_split_ratio: float | None = None
     class_weight: str | None = None
+    model_type: str | None = None  # "gb" (default) or "logreg" or "baseline"
+    scale_numeric: bool | None = None
+    decision_threshold: float | None = None
 
 
 @app.post("/api/models/train_excel", tags=["models"])
@@ -723,34 +745,272 @@ def train_excel(req: ExcelTrainRequest):
         drop_cols = [c.strip() for c in req.drop_cols.split(",") if c.strip()]
         df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
     if req.drop_patterns:
-        patterns = [p.strip() for p in req.drop_patterns.split(",") if p.strip()]
+        patterns = [p.strip().lower() for p in req.drop_patterns.split(",") if p.strip()]
         for p in patterns:
-            df = df[[c for c in df.columns if p not in c]]
+            df = df[[c for c in df.columns if p not in c.lower()]]
     if req.sample_rows and req.sample_rows > 0:
         df = df.sample(n=min(req.sample_rows, len(df)), random_state=42)
 
     if req.target not in df.columns:
         return {"status": "error", "message": f"Target column '{req.target}' not found"}
 
+    # Drop rows with missing target and isolate numeric features
+    df = df[df[req.target].notna()]
     target = df[req.target]
     features_df = df.drop(columns=[req.target])
     numeric_features = features_df.select_dtypes(include=["number"])
+    # Try to expand list-like object columns into numeric summary stats
+    object_cols = [c for c in df.columns if c not in numeric_features.columns and c != req.target]
+    derived = {}
+    for col in object_cols:
+        series = df[col].dropna()
+        if series.empty or not isinstance(series.iloc[0], str):
+            continue
+        first = series.iloc[0].strip()
+        if not first.startswith("["):
+            continue
+        try:
+            parsed = series.map(lambda v: ast.literal_eval(v) if isinstance(v, str) else v)
+            stats = []
+            for v in parsed:
+                arr = [float(x) for x in v] if isinstance(v, (list, tuple)) else []
+                if not arr:
+                    stats.append({})
+                    continue
+                arr_np = np.array(arr, dtype=float)
+                stats.append(
+                    {
+                        f"{col}_mean": float(np.mean(arr_np)),
+                        f"{col}_min": float(np.min(arr_np)),
+                        f"{col}_max": float(np.max(arr_np)),
+                        f"{col}_p90": float(np.percentile(arr_np, 90)),
+                        f"{col}_p99": float(np.percentile(arr_np, 99)),
+                    }
+                )
+            keys = sorted({k for row in stats for k in row})
+            for k in keys:
+                derived[k] = [row.get(k, np.nan) for row in stats]
+        except Exception:
+            continue
+    if derived:
+        for name, values in derived.items():
+            numeric_features[name] = values
+
+    # Impute numeric NaNs with column median (fallback to 0 if still NaN)
+    if not numeric_features.empty:
+        med = numeric_features.median(numeric_only=True)
+        numeric_features = numeric_features.fillna(med)
+        numeric_features = numeric_features.fillna(0)
     feature_list = list(numeric_features.columns)
     if not feature_list:
         return {"status": "error", "message": "No numeric features available after preprocessing"}
 
+    # Drop columns that perfectly align with target to avoid leakage
+    drop_leak = []
+    for col in feature_list:
+        series = numeric_features[col]
+        if series.equals(target):
+            drop_leak.append(col)
+            continue
+        try:
+            corr = np.corrcoef(series, target)[0, 1]
+            if np.isfinite(corr) and abs(corr) >= 0.9999:
+                drop_leak.append(col)
+        except Exception:
+            continue
+    if drop_leak:
+        numeric_features = numeric_features.drop(columns=drop_leak, errors="ignore")
+        feature_list = list(numeric_features.columns)
+        if not feature_list:
+            return {"status": "error", "message": "All features were dropped as leakage."}
+
     class_counts = {str(k): int(v) for k, v in target.value_counts().to_dict().items()}
     feature_means = {k: float(v) for k, v in numeric_features.mean().fillna(0).to_dict().items()}
 
-    payload = {
-        "type": "baseline_mean",
-        "target": req.target,
-        "features": feature_list,
-        "feature_means": feature_means,
-        "class_counts": class_counts,
-        "n_rows": len(df),
-        "n_features": len(feature_list),
-    }
+    # Build combined frame to support duplicate removal and optional time-based split
+    combined = numeric_features.copy()
+    combined["__target"] = target.values
+    time_col = None
+    if req.time_split_col and req.time_split_col in df.columns:
+        time_col = req.time_split_col
+        try:
+            combined["__time"] = pd.to_numeric(df[time_col], errors="coerce")
+        except Exception:
+            combined["__time"] = pd.to_datetime(df[time_col], errors="coerce")
+
+    # Drop duplicate rows across features + target to reduce leakage from identical samples (keep earliest if time provided)
+    subset_cols = feature_list + ["__target"]
+    combined = combined.drop_duplicates(subset=subset_cols, keep="first")
+
+    # Drop rows with missing time if time split requested
+    if time_col:
+        combined = combined[combined["__time"].notna()]
+
+    if combined.empty:
+        return {"status": "error", "message": "No data remaining after preprocessing/deduplication."}
+
+    # Prepare splits
+    stored_threshold = req.decision_threshold if req.decision_threshold is not None else 0.5
+    model_type = (req.model_type or "gb").lower()
+    scale = bool(req.scale_numeric)
+    X_df = combined[feature_list]
+    y_series = combined["__target"]
+
+    def _split():
+        if time_col:
+            split_ratio = req.time_split_ratio if req.time_split_ratio and 0 < req.time_split_ratio < 1 else 0.8
+            sorted_df = combined.sort_values("__time")
+            split_idx = int(len(sorted_df) * split_ratio)
+            train_df = sorted_df.iloc[:split_idx]
+            test_df = sorted_df.iloc[split_idx:] if split_idx < len(sorted_df) else sorted_df.iloc[-1:]
+            return (
+                train_df[feature_list].to_numpy(dtype=float),
+                test_df[feature_list].to_numpy(dtype=float),
+                train_df["__target"].to_numpy(),
+                test_df["__target"].to_numpy(),
+            )
+        test_size = req.test_size if req.test_size and 0 < req.test_size < 1 else 0.2
+        X = X_df.to_numpy(dtype=float)
+        y = y_series.to_numpy()
+        stratify = y if len(np.unique(y)) > 1 else None
+        return train_test_split(X, y, test_size=test_size, random_state=42, stratify=stratify)
+
+    # Baseline path (explicit request or sklearn missing/single class)
+    if model_type == "baseline" or not SKLEARN_AVAILABLE or y_series.nunique() < 2:
+        X_train, X_test, y_train, y_test = _split()
+        majority = max(class_counts.items(), key=lambda kv: kv[1])[0] if class_counts else "0"
+        majority = int(majority) if isinstance(y_series.iloc[0], (int, np.integer)) else majority
+        y_pred = np.array([majority] * len(y_test))
+        acc = accuracy_score(y_test, y_pred) if len(y_test) else 0.0
+        p, r, f, _ = precision_recall_fscore_support(y_test, y_pred, average="binary", zero_division=0)
+        metrics = {
+            "accuracy": float(acc),
+            "precision": float(p),
+            "recall": float(r),
+            "f1": float(f),
+            "test_size": len(y_test),
+            "train_size": len(y_train),
+            "note": "baseline majority model",
+        }
+        payload = {
+            "type": "baseline_mean",
+            "target": req.target,
+            "features": feature_list,
+            "feature_means": feature_means,
+            "class_counts": class_counts,
+            "n_rows": len(df),
+            "n_features": len(feature_list),
+            "metrics": metrics,
+            "majority": majority,
+            "threshold": stored_threshold,
+        }
+    else:
+        try:
+            X_train, X_test, y_train, y_test = _split()
+            scaler = None
+            if scale:
+                scaler = StandardScaler()
+                X_train = scaler.fit_transform(X_train)
+                X_test = scaler.transform(X_test)
+
+            sample_weight = None
+            if req.class_weight and req.class_weight.lower() == "balanced":
+                sample_weight = compute_sample_weight(class_weight="balanced", y=y_train)
+
+            if model_type == "logreg":
+                clf = LogisticRegression(max_iter=200, n_jobs=None, class_weight="balanced" if sample_weight is None else None)
+            else:
+                clf = GradientBoostingClassifier()
+
+            clf.fit(X_train, y_train, sample_weight=sample_weight)
+            y_pred = clf.predict(X_test)
+            acc = accuracy_score(y_test, y_pred)
+            precision, recall, f1, _ = precision_recall_fscore_support(
+                y_test, y_pred, average="binary", zero_division=0
+            )
+
+            # Optional CV (3-fold) for sanity against leakage
+            cv_metrics = None
+            try:
+                X_full = X_df.to_numpy(dtype=float)
+                y_full = y_series.to_numpy()
+                if len(X_full) >= 6:
+                    skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+                    cv_acc = []
+                    cv_prec = []
+                    cv_rec = []
+                    cv_f1 = []
+                    for train_idx, test_idx in skf.split(X_full, y_full):
+                        X_tr, X_te = X_full[train_idx], X_full[test_idx]
+                        y_tr, y_te = y_full[train_idx], y_full[test_idx]
+                        if scale:
+                            scaler_cv = StandardScaler()
+                            X_tr = scaler_cv.fit_transform(X_tr)
+                            X_te = scaler_cv.transform(X_te)
+                        if req.class_weight and req.class_weight.lower() == "balanced":
+                            sw_cv = compute_sample_weight(class_weight="balanced", y=y_tr)
+                        else:
+                            sw_cv = None
+                        if model_type == "logreg":
+                            clf_cv = LogisticRegression(max_iter=200, n_jobs=None, class_weight="balanced" if sw_cv is None else None)
+                        else:
+                            clf_cv = GradientBoostingClassifier()
+                        clf_cv.fit(X_tr, y_tr, sample_weight=sw_cv)
+                        y_cv_pred = clf_cv.predict(X_te)
+                        cv_acc.append(accuracy_score(y_te, y_cv_pred))
+                        p_cv, r_cv, f_cv, _ = precision_recall_fscore_support(y_te, y_cv_pred, average="binary", zero_division=0)
+                        cv_prec.append(p_cv)
+                        cv_rec.append(r_cv)
+                        cv_f1.append(f_cv)
+                    cv_metrics = {
+                        "accuracy": float(np.mean(cv_acc)),
+                        "precision": float(np.mean(cv_prec)),
+                        "recall": float(np.mean(cv_rec)),
+                        "f1": float(np.mean(cv_f1)),
+                        "folds": 3,
+                    }
+            except Exception:
+                cv_metrics = None
+
+            metrics = {
+                "accuracy": float(acc),
+                "precision": float(precision),
+                "recall": float(recall),
+                "f1": float(f1),
+                "test_size": len(y_test),
+                "train_size": len(y_train),
+            }
+            if cv_metrics:
+                metrics["cv"] = cv_metrics
+
+            payload = {
+                "type": "logreg" if model_type == "logreg" else "gb",
+                "target": req.target,
+                "features": feature_list,
+                "metrics": metrics,
+                "class_counts": class_counts,
+                "n_rows": len(df),
+                "n_features": len(feature_list),
+                "model": clf,
+                "scaler": scaler,
+                "threshold": stored_threshold,
+            }
+        except Exception as exc:
+            metrics = {"accuracy": 0, "precision": 0, "recall": 0, "f1": 0, "note": f"{model_type} failed: {exc}"}
+            majority = max(class_counts.items(), key=lambda kv: kv[1])[0] if class_counts else "0"
+            payload = {
+                "type": "baseline_mean",
+                "target": req.target,
+                "features": feature_list,
+                "feature_means": feature_means,
+                "class_counts": class_counts,
+                "n_rows": len(df),
+                "n_features": len(feature_list),
+                "metrics": metrics,
+                "majority": majority,
+                "threshold": stored_threshold,
+            }
+
     try:
         joblib.dump(payload, model_out)
     except Exception as exc:
@@ -762,6 +1022,7 @@ def train_excel(req: ExcelTrainRequest):
         "rows": len(df),
         "features": feature_list,
         "class_counts": class_counts,
+        "metrics": metrics,
         "model_out": str(model_out),
         "input": str(input_path),
     }
@@ -801,22 +1062,48 @@ def predict_excel(req: ExcelPredictRequest):
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
-    preds = []
+    predictions = []
+    model_type = model.get("type")
     class_counts = model.get("class_counts", {})
     total = sum(class_counts.values()) or 1
-    majority = max(class_counts.items(), key=lambda kv: kv[1])[0] if class_counts else "0"
-    prob_majority = class_counts.get(majority, 0) / total
 
-    for item in req.items:
-        _ = []
-        for feat in feature_order:
-            try:
-                _ .append(float(item.get(feat, 0)))
-            except Exception:
-                _ .append(0.0)
-        preds.append({"prediction": majority, "probability": prob_majority})
+    if model_type in {"logreg", "gb"} and SKLEARN_AVAILABLE and "model" in model:
+        clf = model["model"]
+        scaler = model.get("scaler")
+        thresh = req.threshold if req.threshold is not None else model.get("threshold", 0.5)
+        rows = []
+        for item in req.items:
+            row = []
+            for feat in feature_order:
+                try:
+                    row.append(float(item.get(feat, 0)))
+                except Exception:
+                    row.append(0.0)
+            rows.append(row)
+        try:
+            if scaler is not None:
+                rows = scaler.transform(rows)
+            proba = clf.predict_proba(rows)
+            for row_probs in proba:
+                p1 = float(row_probs[1]) if len(row_probs) > 1 else float(row_probs[0])
+                pred = int(p1 >= (thresh or 0.5))
+                predictions.append({"prediction": pred, "probability": p1})
+        except Exception as exc:
+            predictions.append({"error": str(exc)})
+    else:
+        majority = max(class_counts.items(), key=lambda kv: kv[1])[0] if class_counts else "0"
+        prob_majority = class_counts.get(majority, 0) / total
+        for _ in req.items:
+            predictions.append({"prediction": majority, "probability": prob_majority})
 
-    return {"status": "ok", "count": len(preds), "model_path": str(model_path), "features": feature_order, "predictions": preds}
+    return {
+        "status": "ok",
+        "count": len(predictions),
+        "model_path": str(model_path),
+        "features": feature_order,
+        "predictions": predictions,
+        "model_type": model_type,
+    }
 
 
 @app.post("/api/events/seed_demo", tags=["models"])

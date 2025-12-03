@@ -107,7 +107,9 @@ function dashboard() {
         const res = await fetch(this.endpoints.agents);
         const json = await res.json();
         this.agents = Array.isArray(json)
-          ? json.map((a) => ({
+          ? json
+              .filter((a) => (a.status || "").toLowerCase() !== "offline")
+              .map((a) => ({
               id: a.id || a.name || "agent",
               name: a.name || a.id || "agent",
               status: a.status || "unknown",
@@ -162,7 +164,10 @@ function dashboard() {
     },
 
     filteredLogs() {
+      const online = this.onlineAgentIds();
+      if (!online.size) return [];
       return this.logs.filter((l) => {
+        if (l.source_id && !online.has(l.source_id)) return false;
         const levelOk = !this.logFilter.level || (l.log_level || "").toUpperCase() === this.logFilter.level;
         const sourceOk = !this.logFilter.source || (l.source_id || "").includes(this.logFilter.source);
         return levelOk && sourceOk;
@@ -255,6 +260,14 @@ function dashboard() {
       if (lv === "ERROR" || lv === "CRITICAL") return "bg-rose-500/20 text-rose-200";
       if (lv === "WARNING") return "bg-amber-500/20 text-amber-200";
       return "bg-slate-700 text-slate-200";
+    },
+
+    onlineAgentIds() {
+      return new Set(
+        (this.agents || [])
+          .map((a) => a.id || a.name)
+          .filter(Boolean)
+      );
     },
   };
 }

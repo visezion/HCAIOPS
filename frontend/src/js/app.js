@@ -178,7 +178,9 @@ document.addEventListener('alpine:init', () => {
       this.loadingAgents = true;
       try {
         const agents = await getAgentsStatus();
-        this.agents = (agents || []).map((agent) => {
+        this.agents = (agents || [])
+          .filter((agent) => (agent.status || '').toLowerCase() !== 'offline')
+          .map((agent) => {
           const lastSeen = agent.last_seen ? new Date(agent.last_seen) : null;
           const now = new Date();
           const agoMs = lastSeen ? now - lastSeen : null;
@@ -366,6 +368,8 @@ document.addEventListener('alpine:init', () => {
     },
 
     metricsList() {
+      const onlineIds = new Set((this.agents || []).map((agent) => agent.id || agent.name).filter(Boolean));
+      if (!onlineIds.size) return [];
       const summary = this.metricsSummary || {};
       const fmt = (value, digits = 1) => {
         if (value === null || value === undefined) return value;
@@ -374,40 +378,54 @@ document.addEventListener('alpine:init', () => {
         return num.toFixed(digits);
       };
       if (Array.isArray(summary)) {
-        return summary.map((item) => {
-          const avg = item.metric_value ?? item.avg ?? 0;
-          const delta = fmt((item.max ?? avg) - (item.min ?? avg));
+        return summary
+          .filter((item) => onlineIds.has(item.source_id || item.source))
+          .map((item) => {
+            const avg = item.metric_value ?? item.avg ?? 0;
+            const delta = fmt((item.max ?? avg) - (item.min ?? avg));
+            return {
+              name: item.metric_name,
+              source: item.source_id,
+              value: fmt(avg),
+              delta,
+              window: 'live',
+              score: Math.min(100, Math.round((avg || 0) * 100)),
+              updated_at: item.history?.[item.history.length - 1]?.timestamp || new Date().toISOString(),
+            };
+          });
+      }
+
+      return Object.entries(summary)
+        .filter(([key]) => {
+          const sourceId = key.split(':')[1];
+          return onlineIds.has(sourceId);
+        })
+        .map(([key, stats]) => {
+          const [metric_name, source_id] = key.split(':');
+          const avg = stats?.avg ?? 0;
+          const delta = fmt((stats?.max ?? avg) - (stats?.min ?? avg));
           return {
-            name: item.metric_name,
-            source: item.source_id,
+            name: metric_name,
+            source: source_id,
             value: fmt(avg),
             delta,
             window: 'live',
             score: Math.min(100, Math.round((avg || 0) * 100)),
-            updated_at: item.history?.[item.history.length - 1]?.timestamp || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           };
         });
-      }
-
-      return Object.entries(summary).map(([key, stats]) => {
-        const [metric_name, source_id] = key.split(':');
-        const avg = stats?.avg ?? 0;
-        const delta = fmt((stats?.max ?? avg) - (stats?.min ?? avg));
-        return {
-          name: metric_name,
-          source: source_id,
-          value: fmt(avg),
-          delta,
-          window: 'live',
-          score: Math.min(100, Math.round((avg || 0) * 100)),
-          updated_at: new Date().toISOString(),
-        };
-      });
     },
 
     filteredEvents() {
+      const onlineIds = new Set(
+        (this.agents || [])
+          .map((agent) => agent.id || agent.name)
+          .filter(Boolean)
+      );
+      if (!onlineIds.size) return [];
       const term = this.logFilter.toLowerCase();
       return this.recentEvents.filter((event) => {
+        if (event.source_id && !onlineIds.has(event.source_id)) return false;
         if (!term) return true;
         return (
           (event.log_level || '').toLowerCase().includes(term) ||

@@ -6,7 +6,7 @@
   <title>HCAI OPS | Autonomous Operations Dashboard</title>
   <meta name="description" content="HCAI OPS frontend scaffold with TailwindCSS, AlpineJS, and Flowbite">
   <style>[x-cloak]{display:none !important;}</style>
-  <script type="module" crossorigin src="/assets/index-CUpK638O.js"></script>
+  <script type="module" crossorigin src="/assets/index-C4gclWX8.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-AV9_7vlC.css">
 </head>
 <body x-data="$store.hcai" x-init="$store.hcai.init()" :class="{'dark': $store.theme.isDark}" class="bg-slate-50 text-slate-900">
@@ -27,7 +27,7 @@
                   <p class="text-sm text-slate-500 mt-1">Heartbeat, automation readiness, and incident posture in one place.</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
-                  <span class="pill">Healthy - <span class="text-xs text-slate-700">All agents</span></span>
+                  <span class="pill">Healthy - <span class="text-xs text-slate-700" x-text="($store.hcai.agents.length || 0) + ' online'"></span></span>
                   <span class="pill">Automation armed</span>
                   <span class="pill">API reachable</span>
                 </div>

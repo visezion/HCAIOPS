@@ -73,7 +73,7 @@
                   <p class="text-sm text-slate-500 mt-1">Heartbeat, automation readiness, and incident posture in one place.</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
-                  <span class="pill">Healthy - <span class="text-xs text-slate-700">All agents</span></span>
+                  <span class="pill">Healthy - <span class="text-xs text-slate-700" x-text="($store.hcai.agents.length || 0) + ' online'"></span></span>
                   <span class="pill">Automation armed</span>
                   <span class="pill">API reachable</span>
                 </div>
