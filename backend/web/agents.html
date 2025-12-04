@@ -16,6 +16,8 @@
             sources: [],
             modalOpen: false,
             selectedAgent: null,
+            wipeStatus: "",
+            wipeLoading: false,
 
             filters: {
                 source_id: "",
@@ -49,6 +51,23 @@
 
                 // build unique sources
                 this.sources = [...new Set(this.agents.map(a => a.source_id))];
+            },
+
+            async wipeAll() {
+                if (!confirm("This will delete all stored events/logs. Continue?")) return;
+                this.wipeLoading = true;
+                this.wipeStatus = "";
+                try {
+                    const res = await fetch("/api/admin/wipe", { method: "POST" });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data?.detail || "Failed to wipe");
+                    this.wipeStatus = `Wiped ${data.removed || 0} records (${data.backend})`;
+                } catch (err) {
+                    this.wipeStatus = err.message || "Failed to wipe";
+                } finally {
+                    this.wipeLoading = false;
+                    this.fetchAgents();
+                }
             },
 
             viewDetails(agent) {
@@ -95,11 +114,21 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
         <h2 class="text-xl font-semibold text-slate-900">Agents</h2>
-        <button @click="fetchAgents"
-            class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold shadow-sm transition">
-            Refresh
-        </button>
+        <div class="flex items-center gap-2">
+            <button @click="wipeAll"
+                class="px-3 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm font-semibold shadow-sm transition disabled:opacity-60"
+                :disabled="wipeLoading">
+                <span x-show="!wipeLoading">Wipe data/logs</span>
+                <span x-show="wipeLoading">Wiping…</span>
+            </button>
+            <button @click="fetchAgents"
+                class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold shadow-sm transition">
+                Refresh
+            </button>
+        </div>
     </div>
+
+    <p class="text-sm text-slate-600" x-text="wipeStatus" x-show="wipeStatus"></p>
 
     <!-- Filters -->
     <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4">

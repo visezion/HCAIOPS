@@ -43,7 +43,8 @@ from hcai_ops.api.ui_router import router as ui_router
 from hcai_ops.config import HCAIConfig
 from hcai_ops.config.env import get_settings
 from hcai_ops.storage.filesystem import FileSystemStorage
-from hcai_ops.analytics import event_store
+from hcai_ops.analytics import event_store, SQLITE_PATH, JSONL_PATH
+from hcai_ops.analytics.store import SQLiteEventStore, PersistentEventStore
 from hcai_ops.agent.engine import AgentEngine
 from hcai_ops.assets.asset_registry import AssetRegistry
 from hcai_ops.assets.asset_model import Asset
@@ -229,6 +230,58 @@ def _build_alerts(limit: int = 50) -> list[dict[str, object]]:
 
     alerts.sort(key=lambda a: a.get("timestamp") or "", reverse=True)
     return alerts[:limit]
+
+
+@app.post("/api/admin/wipe")
+def wipe_all_events():
+    """
+    Delete all stored events/logs from SQLite/JSONL and in-memory cache.
+    Intended for admin use to reset demo data.
+    """
+    removed = 0
+    backend = "memory"
+    errors: list[str] = []
+
+    # Clear SQLite if present
+    try:
+        if isinstance(event_store, SQLiteEventStore):
+            cur = event_store.conn.execute("SELECT COUNT(*) FROM events")
+            removed = cur.fetchone()[0] or 0
+            event_store.conn.execute("DELETE FROM events")
+            event_store.conn.execute("VACUUM")
+            event_store.conn.commit()
+            backend = "sqlite"
+    except Exception as exc:  # pragma: no cover - admin-only path
+        errors.append(f"sqlite: {exc}")
+
+    # Clear JSONL fallback if present
+    try:
+        if isinstance(event_store, PersistentEventStore) and getattr(event_store, "_path", None):
+            path = Path(event_store._path)
+            removed = max(removed, len(getattr(event_store, "_events", [])))
+            event_store._events = []
+            path.write_text("", encoding="utf-8")
+            backend = "jsonl"
+    except Exception as exc:  # pragma: no cover
+        errors.append(f"jsonl: {exc}")
+
+    # Clear in-memory cache regardless of backend
+    try:
+        if hasattr(event_store, "_events"):
+            removed = max(removed, len(event_store._events))
+            event_store._events = []
+    except Exception as exc:  # pragma: no cover
+        errors.append(f"memory: {exc}")
+
+    # Delete known storage files to fully reset
+    for path in [SQLITE_PATH, JSONL_PATH]:
+        try:
+            if path.exists():
+                path.unlink()
+        except Exception as exc:  # pragma: no cover
+            errors.append(f"unlink {path}: {exc}")
+
+    return {"status": "ok", "backend": backend, "removed": removed, "errors": errors}
 
 
 def _serialize_event_for_training(evt: HCaiEvent) -> dict[str, object]:
